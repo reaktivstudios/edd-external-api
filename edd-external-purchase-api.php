@@ -1,0 +1,319 @@
+<?php
+/*
+Plugin Name: Easy Digital Downloads - External Purchase API
+Plugin URI: http://easydigitaldownloads.com/extension/external-purchase-api/
+Description: Provides an API endpoint for creating sales on third party sites
+Version: 0.0.1
+Author: Reaktiv Studios
+Author URI:  http://andrewnorcross.com
+Contributors: norcross
+*/
+
+/**
+ * EDD_External_API Class
+ *
+ * Renders API returns as a JSON/XML array
+ *
+ * @since  1.5
+ */
+class EDD_External_Purchase_API {
+
+	/**
+	 * API Version
+	 */
+	const VERSION = '1.0';
+
+	/**
+	 * Pretty Print?
+	 *
+	 * @var bool
+	 * @access private
+	 * @since 1.5
+	 */
+	private $pretty_print = false;
+
+	/**
+	 * Log API requests?
+	 *
+	 * @var bool
+	 * @access private
+	 * @since 1.5
+	 */
+	private $log_requests = true;
+
+	/**
+	 * Is this a valid request?
+	 *
+	 * @var bool
+	 * @access private
+	 * @since 1.5
+	 */
+	private $is_valid_request = false;
+
+	/**
+	 * User ID Performing the API Request
+	 *
+	 * @var int
+	 * @access private
+	 * @since 1.5.1
+	 */
+	private $user_id = 0;
+
+	/**
+	 * Instance of EDD Stats class
+	 *
+	 * @var object
+	 * @access private
+	 * @since 1.7
+	 */
+	private $stats;
+
+	/**
+	 * Response data to return
+	 *
+	 * @var array
+	 * @access private
+	 * @since 1.5.2
+	 */
+	private $data = array();
+
+	/**
+	 *
+	 * @var bool
+	 * @access private
+	 * @since 1.7
+	 */
+	private $override = true;
+
+	/**
+	 * Setup the EDD API
+	 *
+	 * @author Daniel J Griffiths
+	 * @since 1.5
+	 */
+	public function __construct() {
+		add_action( 'init',                    array( $this, 'add_endpoint'   ) );
+		add_action( 'template_redirect',       array( $this, 'process_query'  ), 1 );
+		add_filter( 'query_vars',              array( $this, 'query_vars'     ) );
+
+	}
+
+	/**
+	 * Registers a new rewrite endpoint for accessing the API
+	 *
+	 * @access public
+	 * @author Andrew Norcross
+	 * @param array $rewrite_rules WordPress Rewrite Rules
+	 * @since 1.5
+	 */
+	public function add_endpoint( $rewrite_rules ) {
+		add_rewrite_endpoint( 'edd-external-purchase', EP_ALL );
+	}
+
+	/**
+	 * Registers query vars for API access
+	 *
+	 * @access public
+	 * @since 1.5
+	 * @author Daniel J Griffiths
+	 * @param array $vars Query vars
+	 * @return array $vars New query vars
+	 */
+	public function query_vars( $vars ) {
+		$vars[] = 'token';
+		$vars[] = 'key';
+		$vars[] = 'product_id';
+		$vars[] = 'price';
+		$vars[] = 'first_name';
+		$vars[] = 'last_name';
+		$vars[] = 'email';
+		$vars[] = 'source';
+
+		return $vars;
+	}
+
+
+	/**
+	 * Retrieve the user ID based on the public key provided
+	 *
+	 * @access public
+	 * @since 1.5.1
+	 * @global object $wpdb Used to query the database using the WordPress
+	 * Database API
+	 *
+	 * @param string $key Public Key
+	 *
+	 * @return bool if user ID is found, false otherwise
+	 */
+	public function get_user( $key = '' ) {
+		global $wpdb, $wp_query;
+
+		if( empty( $key ) )
+			$key = urldecode( $wp_query->query_vars['key'] );
+
+		$user = $wpdb->get_var( $wpdb->prepare( "SELECT user_id FROM $wpdb->usermeta WHERE meta_key = 'edd_user_public_key' AND meta_value = %s LIMIT 1", $key ) );
+
+		if ( $user != NULL ) {
+			$this->user_id = $user;
+			return $user;
+		}
+		return false;
+	}
+
+	public function get_product_price( $product_id ) {
+
+		$price = get_post_meta( $product_id, 'edd_price', true );
+		if ( $price )
+			$price = edd_sanitize_amount( $price );
+		else
+			$price = 0;
+
+		return $price;
+
+	}
+
+	/**
+	 * Listens for the API and then processes the API requests
+	 *
+	 * @access public
+	 * @author Daniel J Griffiths
+	 * @global $wp_query
+	 * @since 1.5
+	 * @return void
+	 */
+	public function process_query() {
+		global $wp_query;
+
+		// Check for edd-api var. Get out if not present
+		if ( ! isset( $wp_query->query_vars['edd-external-purchase'] ) )
+			return;
+
+		$setprice	= $this->get_product_price( $wp_query->query_vars['product_id'] );
+		$price	= ! isset( $wp_query->query_vars['price'] ) ? $setprice : $wp_query->query_vars['price'];
+
+		$data	= array(
+			'product_id'	=> absint( $wp_query->query_vars['product_id'] ),
+			'price'			=> $price,
+			'first'			=> esc_attr( $wp_query->query_vars['first_name'] ),
+			'last'			=> esc_attr( $wp_query->query_vars['last_name'] ),
+			'email'			=> is_email( $wp_query->query_vars['email'] ),
+			'receipt'		=> true
+		);
+
+		$process	= $this->create_payment( $data );
+
+		// Send out data to the output function
+		$this->output( $process );
+	}
+
+
+
+	public static function create_payment( $data ) {
+
+		global $edd_options;
+
+		$user = get_user_by( 'email', $data['email'] );
+
+		$user_id 	= $user ? $user->ID : 0;
+		$email 		= $user ? $user->user_email : strip_tags( trim( $data['email'] ) );
+
+		if( isset( $data['first'] ) ) {
+			$user_first = sanitize_text_field( $data['first'] );
+		} else {
+			$user_first	= $user ? $user->first_name : '';
+		}
+
+		if( isset( $data['last'] ) ) {
+			$user_last = sanitize_text_field( $data['last'] );
+		} else {
+			$user_last	= $user ? $user->last_name : '';
+		}
+
+		$user_info = array(
+			'id' 			=> $user_id,
+			'email' 		=> $email,
+			'first_name'	=> $user_first,
+			'last_name'		=> $user_last,
+			'discount'		=> 'none'
+		);
+
+		$price = edd_sanitize_amount( strip_tags( trim( $data['price'] ) ) );
+
+
+		// calculate total purchase cost
+		$downloads	= edd_get_download_files( $data['product_id'] );
+
+		$cart_details[] = array(
+			'name'        => get_the_title( $data['product_id'] ),
+			'id'          => $data['product_id'],
+			'item_number' => $data['product_id'],
+			'price'       => $price,
+			'quantity'    => 1,
+		);
+
+		$date = date( 'Y-m-d H:i:s', time() );
+
+		$purchase_data     = array(
+			'price'        => edd_sanitize_amount( $price ),
+			'post_date'    => $date,
+			'purchase_key' => strtolower( md5( uniqid() ) ), // random key
+			'user_email'   => $email,
+			'user_info'    => $user_info,
+			'currency'     => $edd_options['currency'],
+			'downloads'    => $downloads,
+			'cart_details' => $cart_details,
+			'status'       => 'pending' // start with pending so we can call the update function, which logs all stats
+		);
+
+		$payment_id = edd_insert_payment( $purchase_data );
+
+		if( empty( $data['receipt'] ) || $data['receipt'] != '1' ) {
+			remove_action( 'edd_complete_purchase', 'edd_trigger_purchase_receipt', 999 );
+		}
+
+		if( ! empty( $data['expiration'] ) && class_exists( 'EDD_Recurring_Customer' ) && $user_id > 0 ) {
+
+			$expiration = strtotime( $data['expiration'] . ' 23:59:59' );
+
+			EDD_Recurring_Customer::set_as_subscriber( $user_id );
+			EDD_Recurring_Customer::set_customer_payment_id( $user_id, $payment_id );
+			EDD_Recurring_Customer::set_customer_status( $user_id, 'active' );
+			EDD_Recurring_Customer::set_customer_expiration( $user_id, $expiration );
+		}
+
+		// increase stats and log earnings
+		edd_update_payment_status( $payment_id, 'complete' ) ;
+
+		// fetch some data for the return
+
+		return array(
+			'success'		=> true,
+			'payment_id'	=> $payment_id,
+			'purchase_key'	=> $purchase_data['purchase_key']
+		);
+
+	}
+
+
+	/**
+	 * Output Query in either JSON/XML. The query data is outputted as JSON
+	 * by default
+	 *
+	 * @author Daniel J Griffiths
+	 * @since 1.5
+	 * @global $wp_query
+	 *
+	 * @param int $status_code
+	 */
+	public function output( $process ) {
+
+		header( 'HTTP/1.1 200' );
+		header( 'Content-type: application/json; charset=utf-8' );
+		echo json_encode( $process );
+
+		edd_die();
+	}
+
+}
+
+new EDD_External_Purchase_API();
