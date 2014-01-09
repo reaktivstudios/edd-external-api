@@ -172,6 +172,97 @@ class EDD_External_Purchase_API {
 
 	}
 
+	public function confirm_product( $product_id ) {
+
+		$product	= get_post( $product_id );
+
+		if ( ! $product )
+			return false;
+
+		if ( $product->post_type != 'download' )
+			return false;
+
+		if ( $product->post_status != 'publish' )
+			return false;
+
+		return true;
+
+	}
+
+	public function validate_request( $wp_query ) {
+
+		if ( ! isset( $wp_query->query_vars['key'] ) && ! isset( $wp_query->query_vars['token'] ) ) :
+
+			$response	= array(
+				'success'		=> false,
+				'error_code'	=> 'KEY_TOKEN_MISSING',
+				'message'		=> 'The required API key and token were not provided.'
+			);
+
+			$this->output( $response );
+			return false;
+
+		endif;
+
+		if ( ! isset( $wp_query->query_vars['key'] ) ) :
+
+			$response	= array(
+				'success'		=> false,
+				'error_code'	=> 'KEY_MISSING',
+				'message'		=> 'The required API key was not provided.'
+			);
+
+			$this->output( $response );
+			return false;
+
+		endif;
+
+		if ( ! isset( $wp_query->query_vars['token'] ) ) :
+
+			$response	= array(
+				'success'		=> false,
+				'error_code'	=> 'TOKEN_MISSING',
+				'message'		=> 'The required token was not provided.'
+			);
+
+			$this->output( $response );
+			return false;
+
+		endif;
+
+		if ( ! isset( $wp_query->query_vars['product_id'] ) ) :
+
+			$response	= array(
+				'success'		=> false,
+				'error_code'	=> 'NO_PRODUCT_ID',
+				'message'		=> 'No product ID was provided.'
+			);
+
+			$this->output( $response );
+			return false;
+
+		endif;
+
+		// check if the product ID is an actual product
+		$confirm	= $this->confirm_product( $wp_query->query_vars['product_id'] );
+		if ( ! $confirm  ) :
+
+			$response	= array(
+				'success'		=> false,
+				'error_code'	=> 'NOT_VALID_PRODUCT',
+				'message'		=> 'The provided ID was not a valid product.'
+			);
+
+			$this->output( $response );
+			return false;
+
+		endif;
+
+		// all checks passed
+		return true;
+
+	}
+
 	/**
 	 * Listens for the API and then processes the API requests
 	 *
@@ -186,6 +277,11 @@ class EDD_External_Purchase_API {
 
 		// Check for edd-api var. Get out if not present
 		if ( ! isset( $wp_query->query_vars['edd-external-purchase'] ) )
+			return;
+
+		$validate	= $this->validate_request( $wp_query );
+
+		if ( ! $validate )
 			return;
 
 		$userkey	= $wp_query->query_vars['key'];
@@ -216,9 +312,7 @@ class EDD_External_Purchase_API {
 
 		global $edd_options;
 
-		// fetch my API user
-
-
+		// check my API user
 		if ( ! user_can( $data['apiuser'], 'edit_shop_payments' ) )
 			return array(
 				'success'		=> false,
@@ -303,7 +397,8 @@ class EDD_External_Purchase_API {
 		return array(
 			'success'		=> true,
 			'payment_id'	=> $payment_id,
-			'purchase_key'	=> $purchase_data['purchase_key']
+			'purchase_key'	=> $purchase_data['purchase_key'],
+			'downloads'		=> $downloads
 		);
 
 	}
@@ -319,14 +414,15 @@ class EDD_External_Purchase_API {
 	 *
 	 * @param int $status_code
 	 */
-	public function output( $process ) {
+	public function output( $data ) {
 
 		header( 'HTTP/1.1 200' );
 		header( 'Content-type: application/json; charset=utf-8' );
-		echo json_encode( $process );
+		echo json_encode( $data );
 
 		edd_die();
 	}
+
 
 }
 
