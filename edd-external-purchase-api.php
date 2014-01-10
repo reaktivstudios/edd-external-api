@@ -160,18 +160,25 @@ class EDD_External_Purchase_API {
 		return false;
 	}
 
+	/**
+	 * fetch the product price (or zero)
+	 * @param  int $product_id product ID in the database
+	 * @return string
+	 */
 	public function get_product_price( $product_id ) {
 
-		$price = get_post_meta( $product_id, 'edd_price', true );
-		if ( $price )
-			$price = edd_sanitize_amount( $price );
-		else
-			$price = 0;
+		$price	= get_post_meta( $product_id, 'edd_price', true );
+		$price	= ! empty ( $price ) ? edd_sanitize_amount( $price ) ? 0;
 
 		return $price;
 
 	}
 
+	/**
+	 * confirm the ID being passed is actually a live product and not something else
+	 * @param  int $product_id product ID in the database
+	 * @return bool
+	 */
 	public function confirm_product( $product_id ) {
 
 		$product	= get_post( $product_id );
@@ -189,8 +196,14 @@ class EDD_External_Purchase_API {
 
 	}
 
+	/**
+	 * run various checks on the purchase request
+	 * @param  array $wp_query API query being passed
+	 * @return bool
+	 */
 	public function validate_request( $wp_query ) {
 
+		// check for both missing key AND token
 		if ( ! isset( $wp_query->query_vars['key'] ) && ! isset( $wp_query->query_vars['token'] ) ) :
 
 			$response	= array(
@@ -204,6 +217,7 @@ class EDD_External_Purchase_API {
 
 		endif;
 
+		// check for missing key
 		if ( ! isset( $wp_query->query_vars['key'] ) ) :
 
 			$response	= array(
@@ -217,6 +231,7 @@ class EDD_External_Purchase_API {
 
 		endif;
 
+		// check for missing token
 		if ( ! isset( $wp_query->query_vars['token'] ) ) :
 
 			$response	= array(
@@ -230,6 +245,7 @@ class EDD_External_Purchase_API {
 
 		endif;
 
+		// check for missing product ID
 		if ( ! isset( $wp_query->query_vars['product_id'] ) ) :
 
 			$response	= array(
