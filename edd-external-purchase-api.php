@@ -322,7 +322,7 @@ class EDD_External_Purchase_API {
 
 		$data	= array(
 			'product_id'	=> absint( $wp_query->query_vars['product_id'] ),
-			'price'			=> $price,
+			'price'			=> edd_sanitize_amount( $price ),
 			'first'			=> esc_attr( $wp_query->query_vars['first_name'] ),
 			'last'			=> esc_attr( $wp_query->query_vars['last_name'] ),
 			'email'			=> is_email( $wp_query->query_vars['email'] ),
