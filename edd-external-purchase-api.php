@@ -127,7 +127,8 @@ class EDD_External_Purchase_API {
 		$vars[] = 'first_name';
 		$vars[] = 'last_name';
 		$vars[] = 'email';
-		$vars[] = 'source';
+		$vars[] = 'source_name';
+		$vars[] = 'source_url';
 		$vars[] = 'receipt';
 
 		return $vars;
@@ -169,7 +170,7 @@ class EDD_External_Purchase_API {
 	public function get_product_price( $product_id ) {
 
 		$price	= get_post_meta( $product_id, 'edd_price', true );
-		$price	= ! empty ( $price ) ? edd_sanitize_amount( $price ) ? 0;
+		$price	= ! empty ( $price ) ? edd_sanitize_amount( $price ) : 0;
 
 		return $price;
 
@@ -193,6 +194,30 @@ class EDD_External_Purchase_API {
 		if ( $product->post_status != 'publish' )
 			return false;
 
+		return true;
+
+	}
+
+	/**
+	 * confirm the source URL is whitelisted
+	 * @param  string $url
+	 * @return bool
+	 * @todo  add some URL cleanup so they ignore missing trailing slash, etc
+	 */
+	public function confirm_source_url( $source_url ) {
+
+		$whitelist	= apply_filters( 'edd_external_whitelist', array() );
+		$whitelist	= ! is_array( $whitelist ) ? array( $whitelist ) : $whitelist;
+
+		// check for a whitelist
+		if ( ! $whitelist || empty( $whitelist ) )
+			return false;
+
+		// check said whitelist
+		if ( ! in_array( esc_url( $source_url ), $whitelist ) )
+			return false;
+
+		// you're on the list
 		return true;
 
 	}
@@ -239,6 +264,35 @@ class EDD_External_Purchase_API {
 				'success'		=> false,
 				'error_code'	=> 'TOKEN_MISSING',
 				'message'		=> 'The required token was not provided.'
+			);
+
+			$this->output( $response );
+			return false;
+
+		endif;
+
+		// check for missing source URL
+		if ( ! isset( $wp_query->query_vars['source_url'] ) ) :
+
+			$response	= array(
+				'success'		=> false,
+				'error_code'	=> 'SOURCE_URL_MISSING',
+				'message'		=> 'A source URL is required.'
+			);
+
+			$this->output( $response );
+			return false;
+
+		endif;
+
+		// check for source URL on whitelist
+		$whitelist	= $this->confirm_source_url( $wp_query->query_vars['source_url'] );
+		if ( ! $whitelist ) :
+
+			$response	= array(
+				'success'		=> false,
+				'error_code'	=> 'SOURCE_URL_WHITELIST',
+				'message'		=> 'Your site has not been approved for external purchases. Please contact the store owner.'
 			);
 
 			$this->output( $response );
@@ -320,15 +374,17 @@ class EDD_External_Purchase_API {
 		$default	= $this->get_product_price( $wp_query->query_vars['product_id'] );
 		$price		= ! isset( $wp_query->query_vars['price'] ) ? $default : $wp_query->query_vars['price'];
 
+		// build data array of purchase info
 		$data	= array(
 			'product_id'	=> absint( $wp_query->query_vars['product_id'] ),
 			'price'			=> edd_sanitize_amount( $price ),
 			'first'			=> esc_attr( $wp_query->query_vars['first_name'] ),
 			'last'			=> esc_attr( $wp_query->query_vars['last_name'] ),
 			'email'			=> is_email( $wp_query->query_vars['email'] ),
-			'receipt'		=> isset( $wp_query->query_vars['receipt'] ) ? $wp_query->query_vars['receipt'] : true;
+			'receipt'		=> isset( $wp_query->query_vars['receipt'] ) ? $wp_query->query_vars['receipt'] : true
 		);
 
+		// send purchase data to processing
 		$process	= $this->create_payment( $data );
 
 		// Send out data to the output function
