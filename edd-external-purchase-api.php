@@ -205,13 +205,16 @@ class EDD_External_Purchase_API {
 	 */
 	public function strip_url( $url ) {
 
+		// check for the http or https and add it if it's missing
 		if ( !preg_match( "~^(?:f|ht)tps?://~i", $url ) )
 			$url = 'http://' . $url;
 
+		// clean up the damn link
 		$parsed		= parse_url( $url );
 		$host		= $parsed['host'];
 		$strip		= str_replace( 'www.', '', $host );
 
+		// send it back
 		return $strip;
 
 	}
