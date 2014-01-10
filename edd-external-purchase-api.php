@@ -199,12 +199,31 @@ class EDD_External_Purchase_API {
 	}
 
 	/**
+	 * strip the URL down to the host
+	 * @param  string $url
+	 * @return string
+	 */
+	public function strip_url( $url ) {
+
+		if ( !preg_match( "~^(?:f|ht)tps?://~i", $url ) )
+			$url = 'http://' . $url;
+
+		$parsed		= parse_url( $url );
+		$host		= $parsed['host'];
+		$strip		= str_replace( 'www.', '', $host );
+
+		return $strip;
+
+	}
+
+	/**
 	 * confirm the source URL is whitelisted
 	 * @param  string $url
 	 * @return bool
-	 * @todo  add some URL cleanup so they ignore missing trailing slash, etc
 	 */
 	public function confirm_source_url( $source_url ) {
+
+		$source		= $this->strip_url( $source_url );
 
 		$whitelist	= apply_filters( 'edd_external_whitelist', array() );
 		$whitelist	= ! is_array( $whitelist ) ? array( $whitelist ) : $whitelist;
@@ -213,8 +232,13 @@ class EDD_External_Purchase_API {
 		if ( ! $whitelist || empty( $whitelist ) )
 			return false;
 
+		// loop through the URLs and strip them
+		foreach ( $whitelist as $url ) :
+			$clean[]	= $this->strip_url( $url );
+		endforeach;
+
 		// check said whitelist
-		if ( ! in_array( esc_url( $source_url ), $whitelist ) )
+		if ( ! in_array( $source, $clean ) )
 			return false;
 
 		// you're on the list
