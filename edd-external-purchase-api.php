@@ -128,6 +128,7 @@ class EDD_External_Purchase_API {
 		$vars[] = 'last_name';
 		$vars[] = 'email';
 		$vars[] = 'source';
+		$vars[] = 'receipt';
 
 		return $vars;
 	}
@@ -276,7 +277,6 @@ class EDD_External_Purchase_API {
 
 		// check if user being passed has purchase access
 		$apiuser	= $this->get_user( $wp_query->query_vars['key'] );
-		// check my API user
 		if ( ! user_can( $apiuser, 'edit_shop_payments' ) ) :
 
 			$response	= array(
@@ -307,17 +307,18 @@ class EDD_External_Purchase_API {
 	public function process_query() {
 		global $wp_query;
 
-		// Check for edd-api var. Get out if not present
+		// Check for edd-external-purchase var. Get out if not present
 		if ( ! isset( $wp_query->query_vars['edd-external-purchase'] ) )
 			return;
 
+		// run my validation checks
 		$validate	= $this->validate_request( $wp_query );
-
 		if ( ! $validate )
 			return;
 
-		$setprice	= $this->get_product_price( $wp_query->query_vars['product_id'] );
-		$price	= ! isset( $wp_query->query_vars['price'] ) ? $setprice : $wp_query->query_vars['price'];
+		// fetch my default price and check for custom passed
+		$default	= $this->get_product_price( $wp_query->query_vars['product_id'] );
+		$price		= ! isset( $wp_query->query_vars['price'] ) ? $default : $wp_query->query_vars['price'];
 
 		$data	= array(
 			'product_id'	=> absint( $wp_query->query_vars['product_id'] ),
@@ -325,7 +326,7 @@ class EDD_External_Purchase_API {
 			'first'			=> esc_attr( $wp_query->query_vars['first_name'] ),
 			'last'			=> esc_attr( $wp_query->query_vars['last_name'] ),
 			'email'			=> is_email( $wp_query->query_vars['email'] ),
-			'receipt'		=> true
+			'receipt'		=> isset( $wp_query->query_vars['receipt'] ) ? $wp_query->query_vars['receipt'] : true;
 		);
 
 		$process	= $this->create_payment( $data );
