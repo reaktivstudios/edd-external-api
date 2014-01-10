@@ -274,6 +274,22 @@ class EDD_External_Purchase_API {
 
 		endif;
 
+		// check if user being passed has purchase access
+		$apiuser	= $this->get_user( $wp_query->query_vars['key'] );
+		// check my API user
+		if ( ! user_can( $apiuser, 'edit_shop_payments' ) ) :
+
+			$response	= array(
+				'success'		=> false,
+				'error_code'	=> 'NO_PAYMENT_ACCESS',
+				'message'		=> 'The API user does not have permission to create products'
+			);
+
+			$this->output( $response );
+			return false;
+
+		endif;
+
 		// all checks passed
 		return true;
 
@@ -300,14 +316,10 @@ class EDD_External_Purchase_API {
 		if ( ! $validate )
 			return;
 
-		$userkey	= $wp_query->query_vars['key'];
-		$apiuser	= $this->get_user( $data['key'] );
-
 		$setprice	= $this->get_product_price( $wp_query->query_vars['product_id'] );
 		$price	= ! isset( $wp_query->query_vars['price'] ) ? $setprice : $wp_query->query_vars['price'];
 
 		$data	= array(
-			'apiuser'		=> $apiuser,
 			'product_id'	=> absint( $wp_query->query_vars['product_id'] ),
 			'price'			=> $price,
 			'first'			=> esc_attr( $wp_query->query_vars['first_name'] ),
@@ -327,14 +339,6 @@ class EDD_External_Purchase_API {
 	public static function create_payment( $data ) {
 
 		global $edd_options;
-
-		// check my API user
-		if ( ! user_can( $data['apiuser'], 'edit_shop_payments' ) )
-			return array(
-				'success'		=> false,
-				'error_code'	=> 'NO_PAYMENT_ACCESS',
-				'message'		=> 'The API user does not have permission to create products'
-			);
 
 		$user = get_user_by( 'email', $data['email'] );
 
