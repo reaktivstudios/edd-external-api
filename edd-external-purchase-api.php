@@ -206,7 +206,7 @@ class EDD_External_Purchase_API {
 	public function strip_url( $url ) {
 
 		// check for the http or https and add it if it's missing
-		if ( !preg_match( "~^(?:f|ht)tps?://~i", $url ) )
+		if ( ! preg_match( '~^(?:f|ht)tps?://~i', $url ) )
 			$url = 'http://' . $url;
 
 		// clean up the damn link
@@ -237,11 +237,11 @@ class EDD_External_Purchase_API {
 
 		// loop through the URLs and strip them
 		foreach ( $whitelist as $url ) :
-			$clean[]	= $this->strip_url( $url );
+			$list[]	= $this->strip_url( $url );
 		endforeach;
 
 		// check said whitelist
-		if ( ! in_array( $source, $clean ) )
+		if ( ! in_array( $source, $list ) )
 			return false;
 
 		// you're on the list
