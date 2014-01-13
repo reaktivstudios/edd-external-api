@@ -523,7 +523,7 @@ class EDD_External_Purchase_API {
 
 		// fetch my default price and check for custom passed
 		$default	= $this->get_product_price( $wp_query->query_vars['product_id'] );
-		$price		= ! isset( $wp_query->query_vars['price'] ) ? $default : $wp_query->query_vars['price'];
+		$price		= ! isset( $wp_query->query_vars['price'] ) || empty( $wp_query->query_vars['price'] ) ? $default : $wp_query->query_vars['price'];
 
 		// build data array of purchase info
 		$data	= array(
@@ -577,7 +577,6 @@ class EDD_External_Purchase_API {
 		);
 
 		$price = edd_sanitize_amount( strip_tags( trim( $data['price'] ) ) );
-
 
 		// calculate total purchase cost
 		$downloads	= edd_get_download_files( $data['product_id'] );
