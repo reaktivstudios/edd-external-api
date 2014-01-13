@@ -31,12 +31,12 @@ $args = array(
 		'trans_type'	=> 'YOUR-TRANS-TYPE',
 		'product_id'	=> 'YOUR-PRODUCT-ID',
 		'payment_id'	=> 'YOUR-PAYMENT-ID',
-		'price'			=> '99',
-		'source_name'	=> 'AwesomeTown',
-		'source_url'	=> 'http://awesometown.com',
-		'first_name'	=> 'Customer First Name',
-		'last_name'		=> 'Customer Last Name',
-		'email'			=> 'email@example.com',
+		'price'			=> 'YOUR-PRICE',
+		'source_name'	=> 'EXTERNAL-SITE-NAME',
+		'source_url'	=> 'EXTERNAL-SITE-URL',
+		'first_name'	=> 'CUSTOMER-FIRST-NAME',
+		'last_name'		=> 'CUSTOMER-LAST-NAME',
+		'email'			=> 'CUSTOMER-EMAIL',
 	),
 );
 
