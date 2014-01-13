@@ -593,15 +593,16 @@ class EDD_External_Purchase_API {
 		$date = date( 'Y-m-d H:i:s', time() );
 
 		$purchase_data     = array(
-			'price'        => edd_sanitize_amount( $price ),
-			'post_date'    => $date,
-			'purchase_key' => strtolower( md5( uniqid() ) ), // random key
-			'user_email'   => $email,
-			'user_info'    => $user_info,
-			'currency'     => $edd_options['currency'],
-			'downloads'    => $downloads,
-			'cart_details' => $cart_details,
-			'status'       => 'pending' // start with pending so we can call the update function, which logs all stats
+			'price'			=> edd_sanitize_amount( $price ),
+			'post_date'		=> $date,
+			'purchase_key'	=> strtolower( md5( uniqid() ) ), // random key
+			'user_email'	=> $email,
+			'user_info'		=> $user_info,
+			'currency'		=> $edd_options['currency'],
+			'downloads'		=> $downloads,
+			'cart_details'	=> $cart_details,
+			'gateway'		=> 'external',
+			'status'		=> 'pending' // start with pending so we can call the update function, which logs all stats
 		);
 
 		$payment_id = edd_insert_payment( $purchase_data );
@@ -622,9 +623,6 @@ class EDD_External_Purchase_API {
 
 		// increase stats and log earnings
 		edd_update_payment_status( $payment_id, 'complete' ) ;
-
-		// set the payment gateway meta
-		update_post_meta( $payment_id, '_edd_payment_gateway', 'external' );
 
 		// fetch some data for the return
 		return array(
