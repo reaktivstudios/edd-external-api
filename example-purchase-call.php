@@ -5,9 +5,9 @@
  *
  * currently supports either a purchase or a refund (via trans_type variable)
  *
- * REQUIRED FOR ALL: key, token, trans_type
+ * REQUIRED FOR ALL: key, token, trans_type, source_url
  *
- * REQUIRED FOR PURCHASE: product ID, source_url, email
+ * REQUIRED FOR PURCHASE: product ID, email
  *
  * REQUIRED FOR REFUND: payment ID
  *
