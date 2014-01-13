@@ -24,19 +24,19 @@ $url	= 'http://your-site/edd-external-api/';
 
 $args = array(
 	'method'	=> 'POST',
-	'sslverify' 	=> false,
+	'sslverify' => false,
 	'body'		=> array(
-		'key'		=> 'YOUR-KEY',
-		'token'		=> 'YOUR-TOKEN',
+		'key'			=> 'YOUR-KEY',
+		'token'			=> 'YOUR-TOKEN',
 		'trans_type'	=> 'YOUR-TRANS-TYPE',
 		'product_id'	=> 'YOUR-PRODUCT-ID',
 		'payment_id'	=> 'YOUR-PAYMENT-ID',
-		'price'		=> 'YOUR-PRICE',
+		'price'			=> 'YOUR-PRICE',
 		'source_name'	=> 'EXTERNAL-SITE-NAME',
 		'source_url'	=> 'EXTERNAL-SITE-URL',
 		'first_name'	=> 'CUSTOMER-FIRST-NAME',
-		'last_name'	=> 'CUSTOMER-LAST-NAME',
-		'email'		=> 'CUSTOMER-EMAIL',
+		'last_name'		=> 'CUSTOMER-LAST-NAME',
+		'email'			=> 'CUSTOMER-EMAIL',
 	),
 );
 

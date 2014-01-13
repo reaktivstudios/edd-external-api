@@ -667,6 +667,7 @@ class EDD_External_Purchase_API {
 		echo json_encode( $data );
 
 		edd_die();
+
 	}
 
 
