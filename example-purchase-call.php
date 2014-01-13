@@ -1,14 +1,26 @@
 <?php
 
 /**
- * Below is an example call to the external purchase API.
+ * Below is an example call to the external API.
  *
- * returns an array success(bool) payment ID (int) and purchase key(string)
+ * currently supports either a purchase or a refund (via trans_type variable)
  *
- * passing a price will override the set download price, and passing a zero will set it to zero (free). otherwise it will use the set product price
+ * REQUIRED FOR ALL: key, token, trans_type
+ *
+ * REQUIRED FOR PURCHASE: product ID, source_url, email
+ *
+ * REQUIRED FOR REFUND: payment ID
+ *
+ * FOR PURCHASE: returns an array success(bool) payment ID (int) and purchase key(string)
+ *
+ * FOR REFUND: returns an array success(bool) and message
+ *
+ * passing a price will override the set download price, and passing a zero will set it to zero (free).
+ * otherwise it will use the set product price
+ *
  */
 
-$url	= 'http://your-site/edd-external-purchase/';
+$url	= 'http://your-site/edd-external-api/';
 
 $args = array(
 	'method'	=> 'POST',
@@ -16,7 +28,9 @@ $args = array(
 	'body'		=> array(
 		'key'			=> 'YOUR-KEY',
 		'token'			=> 'YOUR-TOKEN',
-		'product_id'	=> $product_id,
+		'trans_type'	=> 'YOUR-TRANS-TYPE',
+		'product_id'	=> 'YOUR-PRODUCT-ID',
+		'payment_id'	=> 'YOUR-PAYMENT-ID',
 		'price'			=> '99',
 		'source_name'	=> 'AwesomeTown',
 		'source_url'	=> 'http://awesometown.com',

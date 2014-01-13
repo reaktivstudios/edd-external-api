@@ -92,6 +92,10 @@ class EDD_External_Purchase_API {
 	 * @since 1.5
 	 */
 	public function __construct() {
+
+		if( ! function_exists( 'edd_price' ) )
+			return; // EDD not present
+
 		add_action( 'init',                    array( $this, 'add_endpoint'   ) );
 		add_action( 'template_redirect',       array( $this, 'process_query'  ), 1 );
 		add_filter( 'query_vars',              array( $this, 'query_vars'     ) );
@@ -107,7 +111,7 @@ class EDD_External_Purchase_API {
 	 * @since 1.5
 	 */
 	public function add_endpoint( $rewrite_rules ) {
-		add_rewrite_endpoint( 'edd-external-purchase', EP_ALL );
+		add_rewrite_endpoint( 'edd-external-api', EP_ALL );
 	}
 
 	/**
@@ -122,6 +126,8 @@ class EDD_External_Purchase_API {
 	public function query_vars( $vars ) {
 		$vars[] = 'token';
 		$vars[] = 'key';
+		$vars[] = 'trans_type';
+		$vars[] = 'payment_id';
 		$vars[] = 'product_id';
 		$vars[] = 'price';
 		$vars[] = 'first_name';
@@ -197,6 +203,30 @@ class EDD_External_Purchase_API {
 		return true;
 
 	}
+
+	/**
+	 * confirm the ID being passed is actually a payment product and not something else
+	 * @param  int $payment_id product ID in the database
+	 * @return bool
+	 * @todo  indicate if item is missing or if has already been refunded
+	 */
+	public function confirm_payment( $payment_id ) {
+
+		$payment	= get_post( $payment_id );
+
+		if ( ! $payment )
+			return false;
+
+		if ( $payment->post_type != 'edd_payment' )
+			return false;
+
+		if ( $payment->post_status != 'publish' )
+			return false;
+
+		return true;
+
+	}
+
 
 	/**
 	 * strip the URL down to the host
@@ -327,28 +357,13 @@ class EDD_External_Purchase_API {
 
 		endif;
 
-		// check for missing product ID
-		if ( ! isset( $wp_query->query_vars['product_id'] ) ) :
+		// check for missing transaction type
+		if ( ! isset( $wp_query->query_vars['trans_type'] ) ) :
 
 			$response	= array(
 				'success'		=> false,
-				'error_code'	=> 'NO_PRODUCT_ID',
-				'message'		=> 'No product ID was provided.'
-			);
-
-			$this->output( $response );
-			return false;
-
-		endif;
-
-		// check if the product ID is an actual product
-		$confirm	= $this->confirm_product( $wp_query->query_vars['product_id'] );
-		if ( ! $confirm  ) :
-
-			$response	= array(
-				'success'		=> false,
-				'error_code'	=> 'NOT_VALID_PRODUCT',
-				'message'		=> 'The provided ID was not a valid product.'
+				'error_code'	=> 'TRANS_TYPE_MISSING',
+				'message'		=> 'No transaction type has been supplied.'
 			);
 
 			$this->output( $response );
@@ -363,7 +378,93 @@ class EDD_External_Purchase_API {
 			$response	= array(
 				'success'		=> false,
 				'error_code'	=> 'NO_PAYMENT_ACCESS',
-				'message'		=> 'The API user does not have permission to create products'
+				'message'		=> 'The API user does not have permission to create products.'
+			);
+
+			$this->output( $response );
+			return false;
+
+		endif;
+
+		// check for missing product ID
+		if ( ! isset( $wp_query->query_vars['product_id'] ) && $wp_query->query_vars['trans_type'] == 'purchase' ) :
+
+			$response	= array(
+				'success'		=> false,
+				'error_code'	=> 'NO_PRODUCT_ID',
+				'message'		=> 'No product ID was provided.'
+			);
+
+			$this->output( $response );
+			return false;
+
+		endif;
+
+		// check for invalid product ID
+		if ( ! is_numeric( $wp_query->query_vars['product_id'] ) && $wp_query->query_vars['trans_type'] == 'purchase' ) :
+
+			$response	= array(
+				'success'		=> false,
+				'error_code'	=> 'INVALID_PRODUCT_ID',
+				'message'		=> 'The provided product ID must be numeric.'
+			);
+
+			$this->output( $response );
+			return false;
+
+		endif;
+
+		// check if the product ID is an actual product
+		$product_check	= $this->confirm_product( $wp_query->query_vars['product_id'] );
+		if ( ! $product_check && $wp_query->query_vars['trans_type'] == 'purchase'  ) :
+
+			$response	= array(
+				'success'		=> false,
+				'error_code'	=> 'NOT_VALID_PRODUCT',
+				'message'		=> 'The provided ID was not a valid product.'
+			);
+
+			$this->output( $response );
+			return false;
+
+		endif;
+
+		// check for missing payment ID
+		if ( ! isset( $wp_query->query_vars['payment_id'] ) && $wp_query->query_vars['trans_type'] == 'refund' ) :
+
+			$response	= array(
+				'success'		=> false,
+				'error_code'	=> 'NO_PAYMENT_ID',
+				'message'		=> 'The payment ID was not provided.'
+			);
+
+			$this->output( $response );
+			return false;
+
+		endif;
+
+		// check for invalid payment ID
+		if ( ! is_numeric( $wp_query->query_vars['payment_id'] ) && $wp_query->query_vars['trans_type'] == 'refund' ) :
+
+			$response	= array(
+				'success'		=> false,
+				'error_code'	=> 'INVALID_PAYMENT_ID',
+				'message'		=> 'The provided payment ID must be numeric.'
+			);
+
+			$this->output( $response );
+			return false;
+
+		endif;
+
+		// check if the payment ID is an actual payment
+		$payment_check	= $this->confirm_payment( $wp_query->query_vars['payment_id'] );
+		if ( ! $payment_check && $wp_query->query_vars['trans_type'] == 'refund'  ) :
+
+			$response	= array(
+				'success'		=> false,
+				'error_code'	=> 'NOT_VALID_PAYMENT',
+				'message'		=> 'The provided ID was not a valid payment ID.'
 			);
 
 			$this->output( $response );
@@ -386,16 +487,39 @@ class EDD_External_Purchase_API {
 	 * @return void
 	 */
 	public function process_query() {
+
 		global $wp_query;
 
 		// Check for edd-external-purchase var. Get out if not present
-		if ( ! isset( $wp_query->query_vars['edd-external-purchase'] ) )
+		if ( ! isset( $wp_query->query_vars['edd-external-api'] ) )
 			return;
 
 		// run my validation checks
 		$validate	= $this->validate_request( $wp_query );
 		if ( ! $validate )
 			return;
+
+		// Determine if a purchase or refund
+		if ( isset( $wp_query->query_vars['trans_type'] ) && $wp_query->query_vars['trans_type'] == 'purchase' )
+			$process	= $this->process_payment( $wp_query );
+
+		if ( isset( $wp_query->query_vars['trans_type'] ) && $wp_query->query_vars['trans_type'] == 'refund' )
+			$process	= $this->process_refund( $wp_query->query_vars['payment_id'] );
+
+		if ( ! $process )
+			return;
+
+		// Send out data to the output function
+		$this->output( $process );
+
+	}
+
+	/**
+	 * collect the data and process the payment
+	 * @param  [type] $wp_query [description]
+	 * @return [type]           [description]
+	 */
+	public function process_payment( $wp_query ) {
 
 		// fetch my default price and check for custom passed
 		$default	= $this->get_product_price( $wp_query->query_vars['product_id'] );
@@ -414,12 +538,15 @@ class EDD_External_Purchase_API {
 		// send purchase data to processing
 		$process	= $this->create_payment( $data );
 
-		// Send out data to the output function
-		$this->output( $process );
+		return $process;
+
 	}
 
-
-
+	/**
+	 * construct the data array and process the payment
+	 * @param  [type] $data [description]
+	 * @return [type]       [description]
+	 */
 	public static function create_payment( $data ) {
 
 		global $edd_options;
@@ -496,10 +623,13 @@ class EDD_External_Purchase_API {
 		// increase stats and log earnings
 		edd_update_payment_status( $payment_id, 'complete' ) ;
 
-		// fetch some data for the return
+		// set the payment gateway meta
+		update_post_meta( $payment_id, '_edd_payment_gateway', 'external' );
 
+		// fetch some data for the return
 		return array(
 			'success'		=> true,
+			'message'		=> 'The payment has been successfully processed',
 			'payment_id'	=> $payment_id,
 			'purchase_key'	=> $purchase_data['purchase_key'],
 			'downloads'		=> $downloads
@@ -507,6 +637,21 @@ class EDD_External_Purchase_API {
 
 	}
 
+	/**
+	 * process the refund
+	 * @param  [type] $payment_id [description]
+	 * @return [type]             [description]
+	 */
+	public function process_refund( $payment_id ) {
+
+		edd_update_payment_status( $payment_id, 'refunded' );
+
+		return array(
+			'success'		=> true,
+			'message'		=> 'The payment has been successfully refunded',
+		);
+
+	}
 
 	/**
 	 * Output Query in either JSON/XML. The query data is outputted as JSON
