@@ -825,6 +825,7 @@ class EDD_External_Purchase_API {
 			'first'			=> esc_attr( $wp_query->query_vars['first_name'] ),
 			'last'			=> esc_attr( $wp_query->query_vars['last_name'] ),
 			'email'			=> is_email( $wp_query->query_vars['email'] ),
+			'date'			=> date( 'Y-m-d H:i:s', time() ),
 			'external_meta'	=> $external_meta,
 			'receipt'		=> isset( $wp_query->query_vars['receipt'] ) ? $wp_query->query_vars['receipt'] : true
 		);
