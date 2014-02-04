@@ -96,9 +96,9 @@ class EDD_External_Purchase_API {
 		if( ! function_exists( 'edd_price' ) )
 			return; // EDD not present
 
-		add_action( 'init',                    array( $this, 'add_endpoint'   ) );
-		add_action( 'template_redirect',       array( $this, 'process_query'  ), 1 );
-		add_filter( 'query_vars',              array( $this, 'query_vars'     ) );
+		add_action(	'init',						array(	$this,	'add_endpoint'		)			);
+		add_action( 'template_redirect',		array(	$this,	'process_query'		),	1		);
+		add_filter( 'query_vars',				array(	$this,	'query_vars'		)			);
 
 	}
 
@@ -169,6 +169,44 @@ class EDD_External_Purchase_API {
 	}
 
 	/**
+	 * fetch the product type (standard or bundle)
+	 * @param  int $product_id product ID in the database
+	 * @return string
+	 */
+	static function get_product_type( $product_id ) {
+
+		$type	= get_post_meta( $product_id, '_edd_product_type', true );
+		$type	= ! empty ( $type ) ? $type : 'default';
+
+		return $type;
+
+	}
+
+	/**
+	 * fetch the product downloads (standard or bundle)
+	 * @param  int $product_id product ID in the database
+	 * @return string
+	 */
+	static function get_product_files( $product_id ) {
+
+		// check item type
+		$itemtype	= self::get_product_type( $product_id );
+
+		// fetch download files for single items
+		if ( $itemtype == 'default' )
+			return edd_get_download_files( $product_id );
+
+		$bundles	= get_post_meta( $product_id, '_edd_bundled_products', true );
+
+		foreach ( $bundles as $bundle_id ):
+			$files[]	= edd_get_download_files( $bundle_id );
+		endforeach;
+
+		return $files;
+
+	}
+
+	/**
 	 * fetch the product price (or zero)
 	 * @param  int $product_id product ID in the database
 	 * @return string
@@ -179,6 +217,55 @@ class EDD_External_Purchase_API {
 		$price	= ! empty ( $price ) ? edd_sanitize_amount( $price ) : 0;
 
 		return $price;
+
+	}
+
+	/**
+	 * fetch the product license key (if one exists)
+	 * @param  int $payment_id payment ID in the database
+	 * @return string
+	 */
+	static function get_product_license( $payment_id ) {
+
+		// fetch payment data based on ID with license
+		$args = array(
+			'fields'		=> 'ids',
+			'nopaging'		=> true,
+			'meta_key'		=> '_edd_sl_payment_id',
+			'meta_value'	=> $payment_id,
+			'post_type'		=> 'edd_license',
+			'post_status'	=> 'any'
+		);
+
+		$licenses = get_posts( $args );
+
+		if ( ! $licenses )
+			return false;
+
+		// fetch count to determine if multiple keys
+		$total	= count( $licenses );
+
+		// fetch license data for singles
+		if ( $total < 2 ) :
+
+			$license_id		= $licenses[0];
+			$license_key	= get_post_meta( $license_id, '_edd_sl_key', true );
+
+		// fetch license data for bundles
+		else :
+
+			foreach ( $licenses as $license_id ):
+				$license_key[]	= get_post_meta( $license_id, '_edd_sl_key', true );
+			endforeach;
+
+		endif;
+
+		// bail if we don't have anything
+		if ( ! $license_key || empty( $license_key ) )
+			return false;
+
+		// send back key(s)
+		return $license_key;
 
 	}
 
@@ -255,6 +342,12 @@ class EDD_External_Purchase_API {
 	 * @return bool
 	 */
 	public function confirm_source_url( $source_url ) {
+
+		// first run bypass filter for those LIVIN ON THE EDGE
+		$disable	= apply_filters( 'edd_external_whitelist_enabled', true );
+
+		if ( ! $disable )
+			return true;
 
 		$source		= $this->strip_url( $source_url );
 
@@ -386,91 +479,103 @@ class EDD_External_Purchase_API {
 
 		endif;
 
-		// check for missing product ID
-		if ( ! isset( $wp_query->query_vars['product_id'] ) && $wp_query->query_vars['trans_type'] == 'purchase' ) :
+		// checks that are tied to purchases
+		if ( $wp_query->query_vars['trans_type'] == 'purchase' ) :
 
-			$response	= array(
-				'success'		=> false,
-				'error_code'	=> 'NO_PRODUCT_ID',
-				'message'		=> 'No product ID was provided.'
-			);
+			// check for missing product ID
+			if ( ! isset( $wp_query->query_vars['product_id'] ) ) :
 
-			$this->output( $response );
-			return false;
+				$response	= array(
+					'success'		=> false,
+					'error_code'	=> 'NO_PRODUCT_ID',
+					'message'		=> 'No product ID was provided.'
+				);
 
-		endif;
+				$this->output( $response );
+				return false;
 
-		// check for invalid product ID
-		if ( ! is_numeric( $wp_query->query_vars['product_id'] ) && $wp_query->query_vars['trans_type'] == 'purchase' ) :
+			endif;
 
-			$response	= array(
-				'success'		=> false,
-				'error_code'	=> 'INVALID_PRODUCT_ID',
-				'message'		=> 'The provided product ID must be numeric.'
-			);
+			// check for invalid product ID
+			if ( ! is_numeric( $wp_query->query_vars['product_id'] ) ) :
 
-			$this->output( $response );
-			return false;
+				$response	= array(
+					'success'		=> false,
+					'error_code'	=> 'INVALID_PRODUCT_ID',
+					'message'		=> 'The provided product ID must be numeric.'
+				);
 
-		endif;
+				$this->output( $response );
+				return false;
 
-		// check if the product ID is an actual product
-		$product_check	= $this->confirm_product( $wp_query->query_vars['product_id'] );
-		if ( ! $product_check && $wp_query->query_vars['trans_type'] == 'purchase'  ) :
+			endif;
 
-			$response	= array(
-				'success'		=> false,
-				'error_code'	=> 'NOT_VALID_PRODUCT',
-				'message'		=> 'The provided ID was not a valid product.'
-			);
+			// check if the product ID is an actual product
+			$product_check	= $this->confirm_product( $wp_query->query_vars['product_id'] );
+			if ( ! $product_check ) :
 
-			$this->output( $response );
-			return false;
+				$response	= array(
+					'success'		=> false,
+					'error_code'	=> 'NOT_VALID_PRODUCT',
+					'message'		=> 'The provided ID was not a valid product.'
+				);
 
-		endif;
+				$this->output( $response );
+				return false;
 
-		// check for missing payment ID
-		if ( ! isset( $wp_query->query_vars['payment_id'] ) && $wp_query->query_vars['trans_type'] == 'refund' ) :
-
-			$response	= array(
-				'success'		=> false,
-				'error_code'	=> 'NO_PAYMENT_ID',
-				'message'		=> 'The payment ID was not provided.'
-			);
-
-			$this->output( $response );
-			return false;
+			endif;
 
 		endif;
 
-		// check for invalid payment ID
-		if ( ! is_numeric( $wp_query->query_vars['payment_id'] ) && $wp_query->query_vars['trans_type'] == 'refund' ) :
 
-			$response	= array(
-				'success'		=> false,
-				'error_code'	=> 'INVALID_PAYMENT_ID',
-				'message'		=> 'The provided payment ID must be numeric.'
-			);
+		// run checks related to refunds or details
+		if ( in_array( $wp_query->query_vars['trans_type'], array( 'refund', 'details' ) ) ):
 
-			$this->output( $response );
-			return false;
+			// check for missing payment ID
+			if ( ! isset( $wp_query->query_vars['payment_id'] ) ) :
+
+				$response	= array(
+					'success'		=> false,
+					'error_code'	=> 'NO_PAYMENT_ID',
+					'message'		=> 'The payment ID was not provided.'
+				);
+
+				$this->output( $response );
+				return false;
+
+			endif;
+
+			// check for invalid payment ID
+			if ( ! is_numeric( $wp_query->query_vars['payment_id'] ) ) :
+
+				$response	= array(
+					'success'		=> false,
+					'error_code'	=> 'INVALID_PAYMENT_ID',
+					'message'		=> 'The provided payment ID must be numeric.'
+				);
+
+				$this->output( $response );
+				return false;
+
+			endif;
+
+			// check if the payment ID is an actual payment
+			$payment_check	= $this->confirm_payment( $wp_query->query_vars['payment_id'] );
+			if ( ! $payment_check ) :
+
+				$response	= array(
+					'success'		=> false,
+					'error_code'	=> 'NOT_VALID_PAYMENT',
+					'message'		=> 'The provided ID was not a valid payment ID.'
+				);
+
+				$this->output( $response );
+				return false;
+
+			endif;
 
 		endif;
 
-		// check if the payment ID is an actual payment
-		$payment_check	= $this->confirm_payment( $wp_query->query_vars['payment_id'] );
-		if ( ! $payment_check && $wp_query->query_vars['trans_type'] == 'refund'  ) :
-
-			$response	= array(
-				'success'		=> false,
-				'error_code'	=> 'NOT_VALID_PAYMENT',
-				'message'		=> 'The provided ID was not a valid payment ID.'
-			);
-
-			$this->output( $response );
-			return false;
-
-		endif;
 
 		// all checks passed
 		return true;
@@ -499,12 +604,19 @@ class EDD_External_Purchase_API {
 		if ( ! $validate )
 			return;
 
+		// set process to false
+		$process	= false;
+
 		// Determine if a purchase or refund
 		if ( isset( $wp_query->query_vars['trans_type'] ) && $wp_query->query_vars['trans_type'] == 'purchase' )
 			$process	= $this->process_payment( $wp_query );
 
 		if ( isset( $wp_query->query_vars['trans_type'] ) && $wp_query->query_vars['trans_type'] == 'refund' )
 			$process	= $this->process_refund( $wp_query->query_vars['payment_id'] );
+
+		// secondary setup for getting most recent details
+		if ( isset( $wp_query->query_vars['trans_type'] ) && $wp_query->query_vars['trans_type'] == 'details' )
+			$process	= $this->process_details( $wp_query );
 
 		if ( ! $process )
 			return;
@@ -578,8 +690,9 @@ class EDD_External_Purchase_API {
 
 		$price = edd_sanitize_amount( strip_tags( trim( $data['price'] ) ) );
 
-		// calculate total purchase cost
-		$downloads	= edd_get_download_files( $data['product_id'] );
+		// fetch download files
+		$downloads	= self::get_product_files( $data['product_id'] );
+
 
 		$cart_details[] = array(
 			'name'        => get_the_title( $data['product_id'] ),
@@ -589,7 +702,8 @@ class EDD_External_Purchase_API {
 			'quantity'    => 1,
 		);
 
-		$date = date( 'Y-m-d H:i:s', time() );
+		$date	= ! empty( $data['date'] ) ? strip_tags( trim( $data['date'] ) ) : '-1 day';
+		$date	= date( 'Y-m-d H:i:s', strtotime( $date ) );
 
 		$purchase_data     = array(
 			'price'			=> edd_sanitize_amount( $price ),
@@ -623,13 +737,17 @@ class EDD_External_Purchase_API {
 		// increase stats and log earnings
 		edd_update_payment_status( $payment_id, 'complete' ) ;
 
+		// add the licensing part
+		$license	= self::get_product_license( $payment_id );
+
 		// fetch some data for the return
 		return array(
 			'success'		=> true,
 			'message'		=> 'The payment has been successfully processed',
 			'payment_id'	=> $payment_id,
 			'purchase_key'	=> $purchase_data['purchase_key'],
-			'downloads'		=> $downloads
+			'downloads'		=> $downloads,
+			'license'		=> $license
 		);
 
 	}
@@ -646,6 +764,33 @@ class EDD_External_Purchase_API {
 		return array(
 			'success'		=> true,
 			'message'		=> 'The payment has been successfully refunded',
+		);
+
+	}
+
+
+	/**
+	 * [process_details description]
+	 * @return [type] [description]
+	 */
+	public function process_details( $wp_query ) {
+
+		$product_id		= absint( $wp_query->query_vars['product_id'] );
+		$payment_id		= absint( $wp_query->query_vars['payment_id'] );
+		$payment_key	= get_post_meta( $payment_id, '_edd_payment_purchase_key', true );
+		$payment_email	= get_post_meta( $payment_id, '_edd_payment_user_email', true );
+
+		$download_data	= self::get_product_files( $product_id );
+		foreach ( $download_data as $filekey => $file ) :
+
+			$download_url = edd_get_download_file_url( $payment_key, $payment_email, $filekey, $product_id );
+
+		endforeach;
+
+		return array(
+			'success'		=> true,
+			'message'		=> 'These are the details',
+			'download'		=> $download_url,
 		);
 
 	}
