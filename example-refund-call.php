@@ -8,7 +8,6 @@
  * REQUIRED FOR ALL: key, token, trans_type, source_url, payment ID
  *
  *
- *
  * FOR REFUND: returns an array success(bool) and message
  *
  * passing a price will override the set download price, and passing a zero will set it to zero (free).
