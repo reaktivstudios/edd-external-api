@@ -193,16 +193,28 @@ class EDD_External_Purchase_API {
 		$itemtype	= self::get_product_type( $product_id );
 
 		// fetch download files for single items
-		if ( $itemtype == 'default' )
-			return edd_get_download_files( $product_id );
+		if ( $itemtype == 'default' ) :
+			$data[]	= array(
+				'id'	=> absint( $product_id ),
+				'file'	=> edd_get_download_files( $product_id ),
+				'name'	=> get_the_title( $product_id ),
+			);
+
+			return $data;
+
+		endif;
 
 		$bundles	= get_post_meta( $product_id, '_edd_bundled_products', true );
 
 		foreach ( $bundles as $bundle_id ):
-			$files[]	= edd_get_download_files( $bundle_id );
+			$data[]	= array(
+				'id'	=> absint( $bundle_id ),
+				'file'	=> edd_get_download_files( $bundle_id ),
+				'name'	=> get_the_title( $bundle_id ),
+			);
 		endforeach;
 
-		return $files;
+		return $data;
 
 	}
 
@@ -266,6 +278,61 @@ class EDD_External_Purchase_API {
 
 		// send back key(s)
 		return $license_key;
+
+	}
+
+
+	/**
+	 * fetch the download URL
+	 * @param  string $url
+	 * @return bool
+	 */
+	public function get_product_download_url( $payment_id, $product_id ) {
+
+		$payment_key	= get_post_meta( $payment_id, '_edd_payment_purchase_key', true );
+		$payment_email	= get_post_meta( $payment_id, '_edd_payment_user_email', true );
+
+		$params = array(
+			'download_key'	=> $payment_key,
+			'email'			=> rawurlencode( $payment_email ),
+			'file'			=> 0,
+			'price_id'		=> 0,
+			'download_id'	=> $product_id,
+			'expire'		=> rawurlencode( base64_encode( 2147472000 ) )
+		);
+
+		$download_url	= add_query_arg( $params, home_url( 'index.php' ) );
+
+		return $download_url;
+
+	}
+
+	/**
+	 * [fetch_download_urls description]
+	 * @return [type] [description]
+	 */
+	static function fetch_download_data( $payment_id, $product_id ) {
+
+		$downloads		= self::get_product_files( $product_id );
+		$licenses		= self::get_product_license( $payment_id );
+
+		$download_data	= array();
+		foreach ( $downloads as $filekey => $file ) :
+
+			$download_url		= self::get_product_download_url( $payment_id, $file['id'] );
+			$download_name		= $file['name'];
+
+			$download_license	= isset( $licenses[ $filekey ] ) ? $licenses[ $filekey ] : '';
+
+			$download_data[]	= array(
+				'name'		=> esc_attr( $download_name ),
+				'link'		=> $download_url,
+				'license'	=> $download_license
+			);
+
+		endforeach;
+
+		return $download_data;
 
 	}
 
@@ -737,8 +804,8 @@ class EDD_External_Purchase_API {
 		// increase stats and log earnings
 		edd_update_payment_status( $payment_id, 'complete' ) ;
 
-		// add the licensing part
-		$license	= self::get_product_license( $payment_id );
+		// fetch the download data array
+		$download_data	= self::fetch_download_data( $payment_id, $data['product_id'] );
 
 		// fetch some data for the return
 		return array(
@@ -746,8 +813,7 @@ class EDD_External_Purchase_API {
 			'message'		=> 'The payment has been successfully processed',
 			'payment_id'	=> $payment_id,
 			'purchase_key'	=> $purchase_data['purchase_key'],
-			'downloads'		=> $downloads,
-			'license'		=> $license
+			'download_data'	=> $download_data,
 		);
 
 	}
@@ -777,20 +843,13 @@ class EDD_External_Purchase_API {
 
 		$product_id		= absint( $wp_query->query_vars['product_id'] );
 		$payment_id		= absint( $wp_query->query_vars['payment_id'] );
-		$payment_key	= get_post_meta( $payment_id, '_edd_payment_purchase_key', true );
-		$payment_email	= get_post_meta( $payment_id, '_edd_payment_user_email', true );
 
-		$download_data	= self::get_product_files( $product_id );
-		foreach ( $download_data as $filekey => $file ) :
-
-			$download_url = edd_get_download_file_url( $payment_key, $payment_email, $filekey, $product_id );
-
-		endforeach;
+		$download_data	= self::fetch_download_data( $payment_id, $product_id );
 
 		return array(
 			'success'		=> true,
 			'message'		=> 'These are the details',
-			'download'		=> $download_url,
+			'download_data'	=> $download_data,
 		);
 
 	}
