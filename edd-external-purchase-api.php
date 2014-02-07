@@ -197,7 +197,7 @@ class EDD_External_Purchase_API {
 			$data[]	= array(
 				'id'	=> absint( $product_id ),
 				'file'	=> edd_get_download_files( $product_id ),
-				'name'	=> get_the_title( $product_id ),
+				'name'	=> self::get_product_name( $product_id ),
 			);
 
 			return $data;
@@ -210,7 +210,7 @@ class EDD_External_Purchase_API {
 			$data[]	= array(
 				'id'	=> absint( $bundle_id ),
 				'file'	=> edd_get_download_files( $bundle_id ),
-				'name'	=> get_the_title( $bundle_id ),
+				'name'	=> self::get_product_name( $bundle_id ),
 			);
 		endforeach;
 
@@ -223,12 +223,28 @@ class EDD_External_Purchase_API {
 	 * @param  int $product_id product ID in the database
 	 * @return string
 	 */
-	public function get_product_price( $product_id ) {
+	static function get_product_price( $product_id ) {
 
 		$price	= get_post_meta( $product_id, 'edd_price', true );
 		$price	= ! empty ( $price ) ? edd_sanitize_amount( $price ) : 0;
 
 		return $price;
+
+	}
+
+	/**
+	 * fetch the custom product name with standard fallback
+	 * @param  int $product_id product ID in the database
+	 * @return string
+	 */
+	static function get_product_name( $product_id ) {
+
+		$custom	= get_post_meta( $product_id, '_edd_external_title', true );
+		$base	= get_the_title( $product_id );
+
+		$title	= ! empty( $custom ) ? $custom : $base;
+
+		return esc_html( $title );
 
 	}
 
@@ -341,9 +357,12 @@ class EDD_External_Purchase_API {
 
 		$external_meta	= get_post_meta( $payment_id, '_edd_external_purchase_meta', true );
 
+		$source_name	= ! empty( $external_meta['source_name'] ) ? esc_html( $external_meta['source_name'] ) : '';
+		$source_url		= ! empty( $external_meta['source_url'] ) ? esc_url( $external_meta['source_url'] ) : '';
+
 		return array(
-			'external_source'	=> esc_html( $external_meta['source_name'] ),
-			'external_url'		=> esc_url( $external_meta['source_url'] ),
+			'external_source'	=> $source_name,
+			'external_url'		=> $source_url,
 			'purchase_key'		=> $purchase_key,
 			'purchase_total'	=> $purchase_total,
 			'purchase_date'		=> $purchase_date,
@@ -806,7 +825,7 @@ class EDD_External_Purchase_API {
 	public function process_payment( $wp_query ) {
 
 		// fetch my default price and check for custom passed
-		$default	= $this->get_product_price( $wp_query->query_vars['product_id'] );
+		$default	= self::get_product_price( $wp_query->query_vars['product_id'] );
 		$price		= ! isset( $wp_query->query_vars['price'] ) || empty( $wp_query->query_vars['price'] ) ? $default : $wp_query->query_vars['price'];
 
 		// set up an array of external data stuff
@@ -878,7 +897,7 @@ class EDD_External_Purchase_API {
 
 
 		$cart_details[] = array(
-			'name'        => get_the_title( $data['product_id'] ),
+			'name'        => self::get_product_name( $data['product_id'] ),
 			'id'          => $data['product_id'],
 			'item_number' => $data['product_id'],
 			'price'       => $price,
