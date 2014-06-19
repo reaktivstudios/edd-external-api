@@ -93,7 +93,7 @@ class EDD_External_Purchase_API {
 	 */
 	public function __construct() {
 
-		if( ! function_exists( 'edd_price' ) )
+		if ( ! function_exists( 'edd_price' ) )
 			return; // EDD not present
 
 		add_action( 'init',                   array( __CLASS__, 'add_endpoint'  )    );
@@ -161,7 +161,7 @@ class EDD_External_Purchase_API {
 	public function get_user( $key = '' ) {
 		global $wpdb, $wp_query;
 
-		if( empty( $key ) )
+		if ( empty( $key ) )
 			$key = urldecode( $wp_query->query_vars['key'] );
 
 		$user = $wpdb->get_var( $wpdb->prepare( "SELECT user_id FROM $wpdb->usermeta WHERE meta_key = 'edd_user_public_key' AND meta_value = %s LIMIT 1", $key ) );
@@ -841,34 +841,33 @@ class EDD_External_Purchase_API {
 	public function process_payment( $wp_query ) {
 
 		// fetch my default price and check for custom passed
-		$default	= $this->get_product_price( $wp_query->query_vars['product_id'] );
-		$price		= ! isset( $wp_query->query_vars['price'] ) || empty( $wp_query->query_vars['price'] ) ? $default : $wp_query->query_vars['price'];
+		$default = $this->get_product_price( $wp_query->query_vars['product_id'] );
+		$price   = ! isset( $wp_query->query_vars['price'] ) || empty( $wp_query->query_vars['price'] ) ? $default : $wp_query->query_vars['price'];
 
 		// set up an array of external data stuff
-		$source_name	= ! empty( $wp_query->query_vars['source_name'] ) ? $wp_query->query_vars['source_name'] : '';
-		$source_url		= ! empty( $wp_query->query_vars['source_url'] ) ? $wp_query->query_vars['source_url'] : '';
+		$source_name = ! empty( $wp_query->query_vars['source_name'] ) ? $wp_query->query_vars['source_name'] : '';
+		$source_url  = ! empty( $wp_query->query_vars['source_url'] ) ? $wp_query->query_vars['source_url'] : '';
 
 		$external_meta	= array(
-			'source_name'	=> esc_html( $source_name ),
-			'source_url'	=> esc_url( $source_url ),
+			'source_name' => esc_html( $source_name ),
+			'source_url'  => esc_url( $source_url ),
 		);
 
 		// build data array of purchase info
-		$data	= array(
-			'product_id'	=> absint( $wp_query->query_vars['product_id'] ),
-			'price'			=> edd_sanitize_amount( $price ),
-			'first'			=> esc_attr( $wp_query->query_vars['first_name'] ),
-			'last'			=> esc_attr( $wp_query->query_vars['last_name'] ),
-			'email'			=> is_email( $wp_query->query_vars['email'] ),
-			'date'			=> date( 'Y-m-d H:i:s', ( time() - 86400 ) ),
-			'external_meta'	=> $external_meta,
-			'receipt'		=> isset( $wp_query->query_vars['receipt'] ) ? $wp_query->query_vars['receipt'] : true
+		$data = array(
+			'product_id'    => absint( $wp_query->query_vars['product_id'] ),
+			'price'         => edd_sanitize_amount( $price ),
+			'first'         => esc_attr( $wp_query->query_vars['first_name'] ),
+			'last'          => esc_attr( $wp_query->query_vars['last_name'] ),
+			'email'         => is_email( $wp_query->query_vars['email'] ),
+			'date'          => date( 'Y-m-d H:i:s', ( time() - 86400 ) ),
+			'external_meta' => $external_meta,
+			'receipt'       => isset( $wp_query->query_vars['receipt'] ) ? $wp_query->query_vars['receipt'] : true
 		);
 
 		// send purchase data to processing
-		$process	= $this->create_payment( $data );
+		$process = $this->create_payment( $data );
 
-		// send it back
 		return $process;
 
 	}
@@ -886,35 +885,35 @@ class EDD_External_Purchase_API {
 		}
 
 		// set our email setup
-		$email	= ! empty( $data['email'] )	? sanitize_email( $data['email'] ) : '';
+		$email = ! empty( $data['email'] ) ? sanitize_email( $data['email'] ) : '';
 
 		// look up the email
-		$user_id	= email_exists( $email );
+		$user_id = email_exists( $email );
 
 		// make sure we don't pull in a duplicate
 		if ( ! $user_id ) {
 
 			// create user info array
-			$first	= ! empty( $data['first_name'] )	? sanitize_text_field( $data['first_name'] ) : '';
-			$last	= ! empty( $data['last_name'] )		? sanitize_text_field( $data['last_name'] ) : '';
-			$email	= ! empty( $data['email'] )			? sanitize_email( $data['email'] ) : '';
+			$first = ! empty( $data['first'] ) ? sanitize_text_field( $data['first'] ) : '';
+			$last  = ! empty( $data['last'] )  ? sanitize_text_field( $data['last'] ) : '';
+			$email = ! empty( $data['email'] ) ? sanitize_email( $data['email'] ) : '';
 
 			// build user array
-			$userdata	= array(
-				'user_pass'			=> wp_generate_password( 16, true, false ),
-				'user_login'		=> $email,
-				'nickname'			=> $first,
-				'user_nicename'		=> sanitize_title_for_query( $email ),
-				'display_name'		=> $first,
-				'user_email'		=> $email,
-				'first_name'		=> $first,
-				'last_name'			=> $last,
-				'user_registered'	=> date( 'Y-m-d H:i:s', time() ),
-				'role'				=> 'subscriber'
+			$userdata = array(
+				'user_pass'       => wp_generate_password( 16, true, false ),
+				'user_login'      => $email,
+				'nickname'        => $first,
+				'user_nicename'   => sanitize_title_for_query( $email ),
+				'display_name'    => $first,
+				'user_email'      => $email,
+				'first_name'      => $first,
+				'last_name'       => $last,
+				'user_registered' => date( 'Y-m-d H:i:s' ),
+				'role'            => get_option( 'default_role' ),
 			);
 
 			// create the user
-			$user_id	= wp_insert_user( $userdata );
+			$user_id = wp_insert_user( $userdata );
 
 			if ( ! is_wp_error( $user_id ) ) {
 
@@ -922,11 +921,17 @@ class EDD_External_Purchase_API {
 				update_user_meta( $user_id, 'edd_external_user', true );
 
 				// WP admin related
-				$pointers	= 'wp330_toolbar,wp330_saving_widgets,wp340_choose_image_from_library,wp340_customize_current_theme_link,wp350_media,wp360_revisions,wp360_locks';
+				$pointers = 'wp330_toolbar,wp330_saving_widgets,wp340_choose_image_from_library,wp340_customize_current_theme_link,wp350_media,wp360_revisions,wp360_locks';
 
-				update_user_meta( $user_id, 'show_welcome_panel',	false );
-				update_user_meta( $user_id, 'show_admin_bar_front',	'false' );
-				update_user_meta( $user_id, 'dismissed_wp_pointers',	$pointers );
+				update_user_meta( $user_id, 'show_welcome_panel', false );
+				update_user_meta( $user_id, 'show_admin_bar_front', 'false' );
+				update_user_meta( $user_id, 'dismissed_wp_pointers', $pointers );
+
+				// Allow themes and plugins to filter the user data
+				$user_data = apply_filters( 'edd_insert_user_data', $user_data, $user_args );
+
+				// Allow themes and plugins to hook
+				do_action( 'edd_insert_user', $user_id, $user_data );
 
 			}
 
@@ -948,39 +953,41 @@ class EDD_External_Purchase_API {
 		// look up the user first
 		$user = get_user_by( 'email', $data['email'] );
 
-		// generate a new user if we dont have one
+		// generate a new user if we don't have one
 		if ( ! $user ) {
 			$user_id = $this->create_user( $data );
+			if ( ! is_wp_error( $user_id ) ) {
+				$user = get_user_by( 'id', $user_id );
+			}
 		}
 
-		// set some variables
-		$user_id 	= $user ? $user->ID : 0;
-		$email 		= $user ? $user->user_email : strip_tags( trim( $data['email'] ) );
+		$user_id = $user ? $user->ID : 0;
+		$email   = $user ? $user->user_email : strip_tags( trim( $data['email'] ) );
 
-		if( ! empty( $data['first'] ) ) {
+		if ( ! empty( $data['first'] ) ) {
 			$user_first = sanitize_text_field( $data['first'] );
 		} else {
 			$user_first	= $user ? $user->first_name : '';
 		}
 
-		if( ! empty( $data['last'] ) ) {
+		if ( ! empty( $data['last'] ) ) {
 			$user_last = sanitize_text_field( $data['last'] );
 		} else {
-			$user_last	= $user ? $user->last_name : '';
+			$user_last = $user ? $user->last_name : '';
 		}
 
 		$user_info = array(
-			'id' 			=> $user_id,
-			'email' 		=> $email,
-			'first_name'	=> $user_first,
-			'last_name'		=> $user_last,
-			'discount'		=> 'none'
+			'id'         => $user_id,
+			'email'      => $email,
+			'first_name' => $user_first,
+			'last_name'  => $user_last,
+			'discount'   => 'none'
 		);
 
 		$price = edd_sanitize_amount( strip_tags( trim( $data['price'] ) ) );
 
 		// fetch download files
-		$downloads	= $this->get_product_files( $data['product_id'] );
+		$downloads = $this->get_product_files( $data['product_id'] );
 
 		// set up cart details
 		$cart_details[] = array(
@@ -991,20 +998,20 @@ class EDD_External_Purchase_API {
 			'quantity'    => 1,
 		);
 
-		$date	= ! empty( $data['date'] ) ? strip_tags( trim( $data['date'] ) ) : '-1 day';
-		$date	= date( 'Y-m-d H:i:s', strtotime( $date ) );
+		$date = ! empty( $data['date'] ) ? strip_tags( trim( $data['date'] ) ) : '-1 day';
+		$date = date( 'Y-m-d H:i:s', strtotime( $date ) );
 
-		$purchase_data     = array(
-			'price'			=> edd_sanitize_amount( $price ),
-			'post_date'		=> $date,
-			'purchase_key'	=> strtolower( md5( uniqid() ) ), // random key
-			'user_email'	=> $email,
-			'user_info'		=> $user_info,
-			'currency'		=> $edd_options['currency'],
-			'downloads'		=> $downloads,
-			'cart_details'	=> $cart_details,
-			'gateway'		=> 'external',
-			'status'		=> 'pending' // start with pending so we can call the update function, which logs all stats
+		$purchase_data = array(
+			'price'        => edd_sanitize_amount( $price ),
+			'post_date'    => $date,
+			'purchase_key' => strtolower( md5( uniqid() ) ), // random key
+			'user_email'   => $email,
+			'user_info'    => $user_info,
+			'currency'     => $edd_options['currency'],
+			'downloads'    => $downloads,
+			'cart_details' => $cart_details,
+			'gateway'      => 'external',
+			'status'       => 'pending' // start with pending so we can call the update function, which logs all stats
 		);
 
 		$payment_id = edd_insert_payment( $purchase_data );
@@ -1013,35 +1020,23 @@ class EDD_External_Purchase_API {
 		update_post_meta( $payment_id, '_edd_external_purchase_meta', $data['external_meta'] );
 
 		// remove the receipt action if set to false on the API call
-		if( empty( $data['receipt'] ) || $data['receipt'] != '1' ) {
+		if ( empty( $data['receipt'] ) || $data['receipt'] != '1' ) {
 			remove_action( 'edd_complete_purchase', 'edd_trigger_purchase_receipt', 999 );
-		}
-
-		// add the user to the recurring setup from EDD
-		// ** TODO ** figure out what this actually does
-		if( ! empty( $data['expiration'] ) && class_exists( 'EDD_Recurring_Customer' ) && $user_id > 0 ) {
-
-			$expiration = strtotime( $data['expiration'] . ' 23:59:59' );
-
-			EDD_Recurring_Customer::set_as_subscriber( $user_id );
-			EDD_Recurring_Customer::set_customer_payment_id( $user_id, $payment_id );
-			EDD_Recurring_Customer::set_customer_status( $user_id, 'active' );
-			EDD_Recurring_Customer::set_customer_expiration( $user_id, $expiration );
 		}
 
 		// increase stats and log earnings
 		edd_update_payment_status( $payment_id, 'complete' ) ;
 
 		// fetch the download data array
-		$download_data	= $this->fetch_download_data( $payment_id, $data['product_id'] );
+		$download_data = $this->fetch_download_data( $payment_id, $data['product_id'] );
 
 		// fetch some data for the return
 		return array(
-			'success'		=> true,
-			'message'		=> 'The payment has been successfully processed',
-			'payment_id'	=> $payment_id,
-			'purchase_key'	=> $purchase_data['purchase_key'],
-			'download_data'	=> $download_data,
+			'success'       => true,
+			'message'       => 'The payment has been successfully processed',
+			'payment_id'    => $payment_id,
+			'purchase_key'  => $purchase_data['purchase_key'],
+			'download_data' => $download_data,
 		);
 
 	}
