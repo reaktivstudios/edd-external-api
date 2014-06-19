@@ -96,10 +96,16 @@ class EDD_External_Purchase_API {
 		if( ! function_exists( 'edd_price' ) )
 			return; // EDD not present
 
-		add_action(	'init',						array(	$this,	'add_endpoint'		)			);
-		add_action( 'template_redirect',		array(	$this,	'process_query'		),	1		);
-		add_filter( 'query_vars',				array(	$this,	'query_vars'		)			);
+		add_action( 'init',                   array( __CLASS__, 'add_endpoint'  )    );
+		add_action( 'template_redirect',      array( $this,     'process_query' ), 1 );
+		add_filter( 'query_vars',             array( $this,     'query_vars'    )    );
+		add_filter( 'edd_external_whitelist', array( $this,     'whitelist'     )    );
 
+	}
+
+	public static function activate() {
+		self::add_endpoint();
+		flush_rewrite_rules();
 	}
 
 	/**
@@ -107,10 +113,9 @@ class EDD_External_Purchase_API {
 	 *
 	 * @access public
 	 * @author Andrew Norcross
-	 * @param array $rewrite_rules WordPress Rewrite Rules
 	 * @since 1.5
 	 */
-	public function add_endpoint( $rewrite_rules ) {
+	public static function add_endpoint() {
 		add_rewrite_endpoint( 'edd-external-api', EP_ALL );
 	}
 
@@ -173,7 +178,7 @@ class EDD_External_Purchase_API {
 	 * @param  int $product_id product ID in the database
 	 * @return string
 	 */
-	static function get_product_type( $product_id ) {
+	public function get_product_type( $product_id ) {
 
 		$type	= get_post_meta( $product_id, '_edd_product_type', true );
 		$type	= ! empty ( $type ) ? $type : 'default';
@@ -187,17 +192,17 @@ class EDD_External_Purchase_API {
 	 * @param  int $product_id product ID in the database
 	 * @return string
 	 */
-	static function get_product_files( $product_id ) {
+	public function get_product_files( $product_id ) {
 
 		// check item type
-		$itemtype	= self::get_product_type( $product_id );
+		$itemtype	= $this->get_product_type( $product_id );
 
 		// fetch download files for single items
 		if ( $itemtype == 'default' ) :
 			$data[]	= array(
 				'id'	=> absint( $product_id ),
 				'file'	=> edd_get_download_files( $product_id ),
-				'name'	=> self::get_product_name( $product_id ),
+				'name'	=> $this->get_product_name( $product_id ),
 			);
 
 			return $data;
@@ -210,7 +215,7 @@ class EDD_External_Purchase_API {
 			$data[]	= array(
 				'id'	=> absint( $bundle_id ),
 				'file'	=> edd_get_download_files( $bundle_id ),
-				'name'	=> self::get_product_name( $bundle_id ),
+				'name'	=> $this->get_product_name( $bundle_id ),
 			);
 		endforeach;
 
@@ -223,7 +228,7 @@ class EDD_External_Purchase_API {
 	 * @param  int $product_id product ID in the database
 	 * @return string
 	 */
-	static function get_product_price( $product_id ) {
+	public function get_product_price( $product_id ) {
 
 		$price	= get_post_meta( $product_id, 'edd_price', true );
 		$price	= ! empty ( $price ) ? edd_sanitize_amount( $price ) : 0;
@@ -237,7 +242,7 @@ class EDD_External_Purchase_API {
 	 * @param  int $product_id product ID in the database
 	 * @return string
 	 */
-	static function get_product_name( $product_id ) {
+	public function get_product_name( $product_id ) {
 
 		$custom	= get_post_meta( $product_id, '_edd_external_title', true );
 		$base	= get_the_title( $product_id );
@@ -253,7 +258,7 @@ class EDD_External_Purchase_API {
 	 * @param  int $payment_id payment ID in the database
 	 * @return string
 	 */
-	static function get_product_license( $payment_id ) {
+	public function get_product_license( $payment_id ) {
 
 		// fetch payment data based on ID with license
 		$args = array(
@@ -315,16 +320,16 @@ class EDD_External_Purchase_API {
 	 * [fetch_download_urls description]
 	 * @return [type] [description]
 	 */
-	static function fetch_download_data( $payment_id, $product_id ) {
+	public function fetch_download_data( $payment_id, $product_id ) {
 
-		$downloads		= self::get_product_files( $product_id );
-		$licenses		= self::get_product_license( $payment_id );
+		$downloads		= $this->get_product_files( $product_id );
+		$licenses		= $this->get_product_license( $payment_id );
 
 		// set the data return to an array
 		$download_data	= array();
 		foreach ( $downloads as $filekey => $file ) :
 
-			$download_url		= self::get_product_download_url( $payment_id, $file['id'] );
+			$download_url		= $this->get_product_download_url( $payment_id, $file['id'] );
 
 			// match up licenses to the applicable download item
 			$download_license	= isset( $licenses[ $filekey ] ) ? $licenses[ $filekey ] : '';
@@ -347,7 +352,7 @@ class EDD_External_Purchase_API {
 	 * @param  [type] $payment_id [description]
 	 * @return [type]             [description]
 	 */
-	static function fetch_purchase_data( $payment_id ) {
+	public function fetch_purchase_data( $payment_id ) {
 
 		$purchase_key	= get_post_meta( $payment_id, '_edd_payment_purchase_key', true );
 		$purchase_total	= get_post_meta( $payment_id, '_edd_payment_total', true );
@@ -836,7 +841,7 @@ class EDD_External_Purchase_API {
 	public function process_payment( $wp_query ) {
 
 		// fetch my default price and check for custom passed
-		$default	= self::get_product_price( $wp_query->query_vars['product_id'] );
+		$default	= $this->get_product_price( $wp_query->query_vars['product_id'] );
 		$price		= ! isset( $wp_query->query_vars['price'] ) || empty( $wp_query->query_vars['price'] ) ? $default : $wp_query->query_vars['price'];
 
 		// set up an array of external data stuff
@@ -936,7 +941,7 @@ class EDD_External_Purchase_API {
 	 * @param  [type] $data [description]
 	 * @return [type]       [description]
 	 */
-	public static function create_payment( $data ) {
+	public function create_payment( $data ) {
 
 		global $edd_options;
 
@@ -945,7 +950,7 @@ class EDD_External_Purchase_API {
 
 		// generate a new user if we dont have one
 		if ( ! $user ) {
-			$user_id	= $this->create_user( $data );
+			$user_id = $this->create_user( $data );
 		}
 
 		// set some variables
@@ -975,11 +980,11 @@ class EDD_External_Purchase_API {
 		$price = edd_sanitize_amount( strip_tags( trim( $data['price'] ) ) );
 
 		// fetch download files
-		$downloads	= self::get_product_files( $data['product_id'] );
+		$downloads	= $this->get_product_files( $data['product_id'] );
 
 		// set up cart details
 		$cart_details[] = array(
-			'name'        => self::get_product_name( $data['product_id'] ),
+			'name'        => $this->get_product_name( $data['product_id'] ),
 			'id'          => $data['product_id'],
 			'item_number' => $data['product_id'],
 			'price'       => $price,
@@ -1028,7 +1033,7 @@ class EDD_External_Purchase_API {
 		edd_update_payment_status( $payment_id, 'complete' ) ;
 
 		// fetch the download data array
-		$download_data	= self::fetch_download_data( $payment_id, $data['product_id'] );
+		$download_data	= $this->fetch_download_data( $payment_id, $data['product_id'] );
 
 		// fetch some data for the return
 		return array(
@@ -1067,8 +1072,8 @@ class EDD_External_Purchase_API {
 		$product_id		= absint( $wp_query->query_vars['product_id'] );
 		$payment_id		= absint( $wp_query->query_vars['payment_id'] );
 
-		$purchase_data	= self::fetch_purchase_data( $payment_id );
-		$download_data	= self::fetch_download_data( $payment_id, $product_id );
+		$purchase_data	= $this->fetch_purchase_data( $payment_id );
+		$download_data	= $this->fetch_download_data( $payment_id, $product_id );
 
 		return array(
 			'success'		=> true,
@@ -1099,7 +1104,13 @@ class EDD_External_Purchase_API {
 
 	}
 
+	public function whitelist( $sites ) {
+		$sites[] = 'http://studiopress.com';
+		return $sites;
+	}
 
 }
+
+register_activation_hook( __FILE__, array( 'EDD_External_Purchase_API', 'activate' ) );
 
 new EDD_External_Purchase_API();
