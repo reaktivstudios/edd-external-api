@@ -894,8 +894,6 @@ class EDD_External_Purchase_API {
 			$last	= ! empty( $data['last_name'] )		? sanitize_text_field( $data['last_name'] ) : '';
 			$email	= ! empty( $data['email'] )			? sanitize_email( $data['email'] ) : '';
 
-			// make a login name
-
 			// build user array
 			$userdata	= array(
 				'user_pass'			=> wp_generate_password( 16, true, false ),
