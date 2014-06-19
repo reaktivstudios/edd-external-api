@@ -380,14 +380,17 @@ class EDD_External_Purchase_API {
 
 		$product	= get_post( $product_id );
 
-		if ( ! $product )
+		if ( ! $product ) {
 			return false;
+		}
 
-		if ( $product->post_type != 'download' )
+		if ( $product->post_type != 'download' ) {
 			return false;
+		}
 
-		if ( $product->post_status != 'publish' )
+		if ( $product->post_status != 'publish' ) {
 			return false;
+		}
 
 		return true;
 
@@ -403,38 +406,19 @@ class EDD_External_Purchase_API {
 
 		$payment	= get_post( $payment_id );
 
-		if ( ! $payment )
+		if ( ! $payment ) {
 			return false;
+		}
 
-		if ( $payment->post_type != 'edd_payment' )
+		if ( $payment->post_type != 'edd_payment' ) {
 			return false;
+		}
 
-		if ( $payment->post_status != 'publish' )
+		if ( $payment->post_status != 'publish' ) {
 			return false;
+		}
 
 		return true;
-
-	}
-
-
-	/**
-	 * strip the URL down to the host
-	 * @param  string $url
-	 * @return string
-	 */
-	public function strip_url( $url ) {
-
-		// check for the http or https and add it if it's missing
-		if ( ! preg_match( '~^(?:f|ht)tps?://~i', $url ) )
-			$url = 'http://' . $url;
-
-		// clean up the damn link
-		$parsed		= parse_url( $url );
-		$host		= $parsed['host'];
-		$strip		= str_replace( 'www.', '', $host );
-
-		// send it back
-		return $strip;
 
 	}
 
@@ -471,6 +455,27 @@ class EDD_External_Purchase_API {
 
 		// you're on the list
 		return true;
+
+	}
+
+	/**
+	 * strip the URL down to the host
+	 * @param  string $url
+	 * @return string
+	 */
+	public function strip_url( $url ) {
+
+		// check for the http or https and add it if it's missing
+		if ( ! preg_match( '~^(?:f|ht)tps?://~i', $url ) )
+			$url = 'http://' . $url;
+
+		// clean up the damn link
+		$parsed		= parse_url( $url );
+		$host		= $parsed['host'];
+		$strip		= str_replace( 'www.', '', $host );
+
+		// send it back
+		return $strip;
 
 	}
 
@@ -787,30 +792,36 @@ class EDD_External_Purchase_API {
 		global $wp_query;
 
 		// Check for edd-external-purchase var. Get out if not present
-		if ( ! isset( $wp_query->query_vars['edd-external-api'] ) )
+		if ( ! isset( $wp_query->query_vars['edd-external-api'] ) ) {
 			return;
+		}
 
 		// run my validation checks
 		$validate	= $this->validate_request( $wp_query );
-		if ( ! $validate )
+		if ( ! $validate ) {
 			return;
+		}
 
 		// set process to false
 		$process	= false;
 
 		// Determine transaction type and act accordingly
-		if ( isset( $wp_query->query_vars['trans_type'] ) && $wp_query->query_vars['trans_type'] == 'purchase' )
+		if ( isset( $wp_query->query_vars['trans_type'] ) && $wp_query->query_vars['trans_type'] == 'purchase' ) {
 			$process	= $this->process_payment( $wp_query );
+		}
 
-		if ( isset( $wp_query->query_vars['trans_type'] ) && $wp_query->query_vars['trans_type'] == 'refund' )
+		if ( isset( $wp_query->query_vars['trans_type'] ) && $wp_query->query_vars['trans_type'] == 'refund' ) {
 			$process	= $this->process_refund( $wp_query->query_vars['payment_id'] );
+		}
 
 		// secondary setup for getting most recent details
-		if ( isset( $wp_query->query_vars['trans_type'] ) && $wp_query->query_vars['trans_type'] == 'details' )
+		if ( isset( $wp_query->query_vars['trans_type'] ) && $wp_query->query_vars['trans_type'] == 'details' ) {
 			$process	= $this->process_details( $wp_query );
+		}
 
-		if ( ! $process )
+		if ( ! $process ) {
 			return;
+		}
 
 		// Send out data to the output function
 		$this->output( $process );
@@ -829,8 +840,8 @@ class EDD_External_Purchase_API {
 		$price		= ! isset( $wp_query->query_vars['price'] ) || empty( $wp_query->query_vars['price'] ) ? $default : $wp_query->query_vars['price'];
 
 		// set up an array of external data stuff
-		$source_name	= isset( $wp_query->query_vars['source_name'] ) && ! empty( $wp_query->query_vars['source_name'] ) ? $wp_query->query_vars['source_name'] : '';
-		$source_url		= isset( $wp_query->query_vars['source_url'] ) && ! empty( $wp_query->query_vars['source_url'] ) ? $wp_query->query_vars['source_url'] : '';
+		$source_name	= ! empty( $wp_query->query_vars['source_name'] ) ? $wp_query->query_vars['source_name'] : '';
+		$source_url		= ! empty( $wp_query->query_vars['source_url'] ) ? $wp_query->query_vars['source_url'] : '';
 
 		$external_meta	= array(
 			'source_name'	=> esc_html( $source_name ),
@@ -844,7 +855,7 @@ class EDD_External_Purchase_API {
 			'first'			=> esc_attr( $wp_query->query_vars['first_name'] ),
 			'last'			=> esc_attr( $wp_query->query_vars['last_name'] ),
 			'email'			=> is_email( $wp_query->query_vars['email'] ),
-			'date'			=> date( 'Y-m-d H:i:s', time() ),
+			'date'			=> date( 'Y-m-d H:i:s', ( time() - 86400 ) ),
 			'external_meta'	=> $external_meta,
 			'receipt'		=> isset( $wp_query->query_vars['receipt'] ) ? $wp_query->query_vars['receipt'] : true
 		);
@@ -852,7 +863,73 @@ class EDD_External_Purchase_API {
 		// send purchase data to processing
 		$process	= $this->create_payment( $data );
 
+		// send it back
 		return $process;
+
+	}
+
+	/**
+	 * [create_user description]
+	 * @param  array   $data       [description]
+	 * @return [type]              [description]
+	 */
+	public function create_user( $data = array() ) {
+
+		// run required check for data
+		if ( ! $data ) {
+			return;
+		}
+
+		// set our email setup
+		$email	= ! empty( $data['email'] )	? sanitize_email( $data['email'] ) : '';
+
+		// look up the email
+		$user_id	= email_exists( $email );
+
+		// make sure we don't pull in a duplicate
+		if ( ! $user_id ) {
+
+			// create user info array
+			$first	= ! empty( $data['first_name'] )	? sanitize_text_field( $data['first_name'] ) : '';
+			$last	= ! empty( $data['last_name'] )		? sanitize_text_field( $data['last_name'] ) : '';
+			$email	= ! empty( $data['email'] )			? sanitize_email( $data['email'] ) : '';
+
+			// make a login name
+
+			// build user array
+			$userdata	= array(
+				'user_pass'			=> wp_generate_password( 16, true, false ),
+				'user_login'		=> $email,
+				'nickname'			=> $first,
+				'user_nicename'		=> sanitize_title_for_query( $email ),
+				'display_name'		=> $first,
+				'user_email'		=> $email,
+				'first_name'		=> $first,
+				'last_name'			=> $last,
+				'user_registered'	=> date( 'Y-m-d H:i:s', time() ),
+				'role'				=> 'subscriber'
+			);
+
+			// create the user
+			$user_id	= wp_insert_user( $userdata );
+
+			if ( ! is_wp_error( $user_id ) ) {
+
+				// set a flag for external source so we can find it later
+				update_user_meta( $user_id, 'edd_external_user', true );
+
+				// WP admin related
+				$pointers	= 'wp330_toolbar,wp330_saving_widgets,wp340_choose_image_from_library,wp340_customize_current_theme_link,wp350_media,wp360_revisions,wp360_locks';
+
+				update_user_meta( $user_id, 'show_welcome_panel',	false );
+				update_user_meta( $user_id, 'show_admin_bar_front',	'false' );
+				update_user_meta( $user_id, 'dismissed_wp_pointers',	$pointers );
+
+			}
+
+		}
+
+		return $user_id;
 
 	}
 
@@ -865,18 +942,25 @@ class EDD_External_Purchase_API {
 
 		global $edd_options;
 
+		// look up the user first
 		$user = get_user_by( 'email', $data['email'] );
 
+		// generate a new user if we dont have one
+		if ( ! $user ) {
+			$user_id	= $this->create_user( $data );
+		}
+
+		// set some variables
 		$user_id 	= $user ? $user->ID : 0;
 		$email 		= $user ? $user->user_email : strip_tags( trim( $data['email'] ) );
 
-		if( isset( $data['first'] ) ) {
+		if( ! empty( $data['first'] ) ) {
 			$user_first = sanitize_text_field( $data['first'] );
 		} else {
 			$user_first	= $user ? $user->first_name : '';
 		}
 
-		if( isset( $data['last'] ) ) {
+		if( ! empty( $data['last'] ) ) {
 			$user_last = sanitize_text_field( $data['last'] );
 		} else {
 			$user_last	= $user ? $user->last_name : '';
@@ -895,7 +979,7 @@ class EDD_External_Purchase_API {
 		// fetch download files
 		$downloads	= self::get_product_files( $data['product_id'] );
 
-
+		// set up cart details
 		$cart_details[] = array(
 			'name'        => self::get_product_name( $data['product_id'] ),
 			'id'          => $data['product_id'],
@@ -925,10 +1009,13 @@ class EDD_External_Purchase_API {
 		// add some data regarding the external source
 		update_post_meta( $payment_id, '_edd_external_purchase_meta', $data['external_meta'] );
 
+		// remove the receipt action if set to false on the API call
 		if( empty( $data['receipt'] ) || $data['receipt'] != '1' ) {
 			remove_action( 'edd_complete_purchase', 'edd_trigger_purchase_receipt', 999 );
 		}
 
+		// add the user to the recurring setup from EDD
+		// ** TODO ** figure out what this actually does
 		if( ! empty( $data['expiration'] ) && class_exists( 'EDD_Recurring_Customer' ) && $user_id > 0 ) {
 
 			$expiration = strtotime( $data['expiration'] . ' 23:59:59' );
