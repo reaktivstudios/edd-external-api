@@ -998,6 +998,7 @@ class EDD_External_Purchase_API {
 			'item_number' => $data['product_id'],
 			'price'       => $price,
 			'quantity'    => 1,
+			'tax'         => 0,
 		);
 
 		$date = ! empty( $data['date'] ) ? strip_tags( trim( $data['date'] ) ) : '-1 day';
@@ -1005,6 +1006,7 @@ class EDD_External_Purchase_API {
 
 		$purchase_data = array(
 			'price'        => edd_sanitize_amount( $price ),
+			'tax'          => 0,
 			'post_date'    => $date,
 			'purchase_key' => strtolower( md5( uniqid() ) ), // random key
 			'user_email'   => $email,
