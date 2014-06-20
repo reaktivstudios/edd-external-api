@@ -493,6 +493,18 @@ class EDD_External_Purchase_API {
 	 */
 	public function validate_request( $wp_query ) {
 
+		// Bail if we're not serving over SSL
+		if ( ! is_ssl() ) {
+			$response = array(
+				'success'    => false,
+				'error_code' => 'NO_SSL',
+				'message'    => 'The API is only available over HTTPS.'
+			);
+
+			$this->output( $response );
+			return false;
+		}
+
 		// check for both missing key AND token
 		if ( ! isset( $wp_query->query_vars['key'] ) && ! isset( $wp_query->query_vars['token'] ) ) :
 
