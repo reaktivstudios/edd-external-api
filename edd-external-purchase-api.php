@@ -494,7 +494,7 @@ class EDD_External_Purchase_API {
 	public function validate_request( $wp_query ) {
 
 		// Bail if we're not serving over SSL
-		if ( ! is_ssl() ) {
+		if ( apply_filters( 'edd_external_require_ssl', true ) && ! is_ssl() ) {
 			$response = array(
 				'success'    => false,
 				'error_code' => 'NO_SSL',
@@ -946,7 +946,9 @@ class EDD_External_Purchase_API {
 				$user_data = apply_filters( 'edd_insert_user_data', $user_data, $user_args );
 
 				// Allow themes and plugins to hook
+				remove_action( 'edd_insert_user', 'edd_new_user_notification', 10, 2 );
 				do_action( 'edd_insert_user', $user_id, $user_data );
+				add_action( 'edd_insert_user', 'edd_new_user_notification', 10, 2 );
 
 			}
 
@@ -1116,6 +1118,11 @@ class EDD_External_Purchase_API {
 
 	}
 
+	/**
+	 * set the whitelist for allowed sites to make a connection
+	 * @param  [type] $sites [description]
+	 * @return [type]        [description]
+	 */
 	public function whitelist( $sites ) {
 		$sites[] = 'http://studiopress.com';
 		return $sites;
