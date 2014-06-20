@@ -465,6 +465,7 @@ class EDD_External_Purchase_API {
 
 	/**
 	 * strip the URL down to the host
+	 *
 	 * @param  string $url
 	 * @return string
 	 */
@@ -475,12 +476,13 @@ class EDD_External_Purchase_API {
 			$url = 'http://' . $url;
 
 		// clean up the damn link
-		$parsed		= parse_url( $url );
-		$host		= $parsed['host'];
-		$strip		= str_replace( 'www.', '', $host );
+		$parsed = parse_url( $url );
+		$host   = $parsed['host'];
+		$parts  = explode( '.', $host );
+		// Give us only the last two parts of the host (domain and TLD)
+		$domain = join( '.', array_slice( $parts, -2 ) );
 
-		// send it back
-		return $strip;
+		return $domain;
 
 	}
 
