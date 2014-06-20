@@ -862,7 +862,7 @@ class EDD_External_Purchase_API {
 			'first'         => esc_attr( $wp_query->query_vars['first_name'] ),
 			'last'          => esc_attr( $wp_query->query_vars['last_name'] ),
 			'email'         => is_email( $wp_query->query_vars['email'] ),
-			'date'          => date( 'Y-m-d H:i:s', ( time() - 86400 ) ),
+			'date'          => date( 'Y-m-d H:i:s', strtotime( 'NOW', current_time( 'timestamp' ) ) ),
 			'external_meta' => $external_meta,
 			'receipt'       => isset( $wp_query->query_vars['receipt'] ) ? $wp_query->query_vars['receipt'] : true
 		);
@@ -899,6 +899,7 @@ class EDD_External_Purchase_API {
 			$first = ! empty( $data['first'] ) ? sanitize_text_field( $data['first'] ) : '';
 			$last  = ! empty( $data['last'] )  ? sanitize_text_field( $data['last'] ) : '';
 			$email = ! empty( $data['email'] ) ? sanitize_email( $data['email'] ) : '';
+			$date  = ! empty( $data['date'] )  ? $data['date'] : date( 'Y-m-d H:i:s', strtotime( 'NOW', current_time( 'timestamp' ) ) );
 
 			// build user array
 			$userdata = array(
@@ -910,7 +911,7 @@ class EDD_External_Purchase_API {
 				'user_email'      => $email,
 				'first_name'      => $first,
 				'last_name'       => $last,
-				'user_registered' => date( 'Y-m-d H:i:s' ),
+				'user_registered' => $date,
 				'role'            => get_option( 'default_role' ),
 			);
 
@@ -1001,8 +1002,8 @@ class EDD_External_Purchase_API {
 			'tax'         => 0,
 		);
 
-		$date = ! empty( $data['date'] ) ? strip_tags( trim( $data['date'] ) ) : '-1 day';
-		$date = date( 'Y-m-d H:i:s', strtotime( $date ) );
+		$date = ! empty( $data['date'] ) ? strip_tags( trim( $data['date'] ) ) : 'NOW';
+		$date = date( 'Y-m-d H:i:s', strtotime( $date, current_time( 'timestamp' ) ) );
 
 		$purchase_data = array(
 			'price'        => edd_sanitize_amount( $price ),
