@@ -1046,6 +1046,9 @@ class EDD_External_Purchase_API {
 		// increase stats and log earnings
 		edd_update_payment_status( $payment_id, 'complete' ) ;
 
+		// send the admin notification
+		$this->send_admin_notification( $payment_id, $purchase_data );
+
 		// fetch the download data array
 		$download_data = $this->fetch_download_data( $payment_id, $data['product_id'] );
 
@@ -1057,6 +1060,31 @@ class EDD_External_Purchase_API {
 			'purchase_key'  => $purchase_data['purchase_key'],
 			'download_data' => $download_data,
 		);
+
+	}
+
+	/**
+	 * [send_admin_notification description]
+	 * @param  integer $payment_id   [description]
+	 * @param  array   $payment_data [description]
+	 * @return [type]                [description]
+	 */
+	public function send_admin_notification( $payment_id = 0, $purchase_data = array() ) {
+
+		/*
+			**TODO** actually check the EDD settings and respect that
+			// get the EDD settings
+			$settings	= get_option( 'edd_settings' );
+			if ( ! isset( $settings['disable_admin_notices'] ) ) {
+				return;
+			}
+		 */
+
+		// run the EDD admin email function
+		edd_admin_email_notice( $payment_id, $purchase_data );
+
+		// and send it back
+		return;
 
 	}
 
