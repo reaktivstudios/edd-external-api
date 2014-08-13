@@ -290,7 +290,6 @@ class EDD_External_Purchase_API {
 
 	}
 
-
 	/**
 	 * fetch the download URL
 	 * @param  string $url
@@ -1089,14 +1088,223 @@ class EDD_External_Purchase_API {
 	}
 
 	/**
+	 * [set_html_content_type description]
+	 */
+	public function set_html_content_type() {
+		return 'text/html';
+	}
+
+	/**
+	 * [get_refund_email_data description]
+	 * @param  integer $payment_id [description]
+	 * @return [type]              [description]
+	 */
+	public function get_refund_email_data( $payment_id = 0 ) {
+
+		// get some payment info
+		$payment_num	= get_post_meta( $payment_id, '_edd_payment_number', true );
+		$purchase_date	= get_post_meta( $payment_id, '_edd_completed_date', true );
+		$refund_date	= get_post_meta( $payment_id, '_edd_refunded_date', true );
+		$payment_total	= get_post_meta( $payment_id, '_edd_payment_total', true );
+		$user_email		= get_post_meta( $payment_id, '_edd_payment_user_email', true );
+		$user_id		= get_post_meta( $payment_id, '_edd_payment_user_id', true );
+		$edit_link		= get_edit_post_link( $payment_id );
+		$user_link		= get_edit_user_link( $user_id );
+		$payment_meta	= get_post_meta( $payment_id, '_edd_payment_meta', true );
+		$payment_cart	= $payment_meta['cart_details'];
+		$payment_items	= wp_list_pluck( $payment_cart, 'name' );
+
+		// set up the data
+		$data	= array();
+
+		// set up singles
+		$data['payment-num']	= esc_attr( $payment_num );
+		$data['purchase-date']	= esc_attr( $purchase_date );
+		$data['refund-date']	= esc_attr( $refund_date );
+		$data['payment-total']	= esc_attr( $payment_total );
+		$data['user-email']		= is_email( $user_email );
+		$data['user-link']		= esc_url( $user_link );
+		$data['item-link']		= esc_url( $edit_link );
+		$data['payment-items']	= (array) $payment_items;
+
+		// return them
+		return $data;
+	}
+
+	/**
+	 * [build_refund_email_content description]
+	 * @param  integer $payment_id [description]
+	 * @return [type]              [description]
+	 */
+	public function build_refund_email_content( $payment_id = 0 ) {
+
+		// get the email data
+		$data	= $this->get_refund_email_data( $payment_id );
+
+		// bail without data
+		if ( empty( $data ) ) {
+			return;
+		}
+
+		// build the email body
+		$output	= '';
+		// the opening and had
+		$output	.= '<html>';
+		$output	.= '<head>';
+			$output	.= '<meta http-equiv="Content-Type" content="text/html; charset=utf-8">';
+		$output	.= '</head>';
+		$output	.= '<body>';
+
+		// the meat of the email
+		$output	.= '<table border="0" cellspacing="0" cellpadding="0">'."\n";
+		// begin data check
+		if ( ! empty( $data['payment-num'] ) ) {
+			// quick part for output
+			$edit	= ! empty( $data['item-link'] ) ? '<a href="' . $data['item-link'] . '">&nbsp;<em><small>(edit)</small></em></a>' : '';
+			// show it
+			$output	.= '<tr>';
+				$output	.= '<th width="200" align="left" valign="top">Payment Number:&nbsp;</th>';
+				$output	.= '<td width="600" valign="top">' . $data['payment-num'] . $edit . '</td>';
+			$output	.= '</tr>';
+		}
+		if ( ! empty( $data['purchase-date'] ) ) {
+			$output	.= '<tr>';
+				$output	.= '<th width="200" align="left" valign="top">Purchase Date:&nbsp;</th>';
+				$output	.= '<td width="600" valign="top">' . $data['purchase-date'] . '</td>';
+			$output	.= '</tr>';
+		}
+		if ( ! empty( $data['refund-date'] ) ) {
+			$output	.= '<tr>';
+				$output	.= '<th width="200" align="left" valign="top">Refund Date:&nbsp;</th>';
+				$output	.= '<td width="600" valign="top">' . $data['refund-date'] . '</td>';
+			$output	.= '</tr>';
+		}
+		if ( ! empty( $data['payment-total'] ) ) {
+			$output	.= '<tr>';
+				$output	.= '<th width="200" align="left" valign="top">Payment Total:&nbsp;</th>';
+				$output	.= '<td width="600" valign="top">$' . $data['payment-total'] . '</td>';
+			$output	.= '</tr>';
+		}
+		if ( ! empty( $data['user-email'] ) ) {
+			// quick part for output
+			$edit	= ! empty( $data['user-link'] ) ? '<a href="' . $data['user-link'] . '">&nbsp;<em><small>(edit)</small></em></a>' : '';
+			// show it
+			$output	.= '<tr>';
+				$output	.= '<th width="200" align="left" valign="top">User Email:&nbsp;</th>';
+				$output	.= '<td width="600" valign="top">' . $data['user-email'] . $edit . '</td>';
+			$output	.= '</tr>';
+		}
+		if ( ! empty( $data['payment-items'] ) ) {
+			// show it
+			$output	.= '<tr>';
+				$output	.= '<th width="200" align="left" valign="top">Item(s) Purchased:&nbsp;</th>';
+				$output	.= '<td width="600" valign="top">';
+				// we need to loop them
+				foreach( $data['payment-items'] as $item ) {
+					$output	.= esc_attr( $item ) . '<br />';
+				}
+				$output	.= '</td>';
+			$output	.= '</tr>';
+
+		}
+		// end table
+		$output	.= '</table>';
+		// close it up
+		$output	.= '</body>';
+		$output	.= '</html>';
+
+		// send it back
+		return trim( $output );
+
+	}
+
+	/**
+	 * send an email notification to the admin when a refund
+	 * has been processed via external call
+	 *
+	 * @param  integer $payment_id [description]
+	 * @return [type]              [description]
+	 */
+	public function send_refund_notification( $payment_id = 0 ) {
+
+		// run various checks to make sure we aren't doing anything weird
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE || defined( 'DOING_AJAX' ) && DOING_AJAX ) {
+			return;
+		}
+
+		// get the notification email address
+		$notify	= $this->get_single_edd_setting( 'admin_notice_emails' );
+
+		// get the admin email if the field is blank
+		$email	= ! empty( $notify ) ? sanitize_email( $notify ) : get_option( 'admin_email' );
+
+		// bail with no email
+		if ( empty( $email ) ) {
+			return;
+		}
+
+		// get email template data
+		$from_name	= get_bloginfo( 'name' );
+		$from_addr	= get_option( 'admin_email' );
+
+		// generate email headers
+		$headers = 'From: '.$from_name.' <'.$from_addr.'>' . "\r\n" ;
+		$headers .= 'Return-Path: '.$from_addr."\r\n" ;
+		$headers .= 'MIME-Version: 1.0' . "\r\n" ;
+		$headers .= 'Content-Type: text/html; charset="UTF-8"'. "\r\n" ;
+
+		// email subject
+		$subject = 'EDD Refund Notice';
+
+		// trim and clean it
+		$message	= $this->build_refund_email_content( $payment_id );
+
+		// switch to HTML format
+		add_filter( 'wp_mail_content_type', array( $this, 'set_html_content_type' ) );
+
+		// send the email
+		wp_mail( $email, $subject, $message, $headers );
+
+		// remove the HTML format
+		remove_filter( 'wp_mail_content_type', array( $this, 'set_html_content_type' ) );
+
+		return;
+
+	}
+
+	/**
+	 * get a single EDD setting from the big array
+	 * @param  string $key [description]
+	 * @return [type]      [description]
+	 */
+	public function get_single_edd_setting( $key = '' ) {
+
+		// first get the option array
+		$settings	= get_option( 'edd_settings' );
+
+		// bail without the array, or our requested key
+		if ( empty( $settings ) || ! empty( $settings ) && empty( $settings[$key] ) ) {
+			return false;
+		}
+
+		// return the requested item
+		return $settings[$key];
+
+	}
+
+	/**
 	 * process the refund
 	 * @param  [type] $payment_id [description]
 	 * @return [type]             [description]
 	 */
 	public function process_refund( $payment_id ) {
-
+		// update our payment status
 		edd_update_payment_status( $payment_id, 'refunded' );
-
+		// set a meta key
+		update_post_meta( $payment_id, '_edd_refunded_date', current_time( 'mysql' ) );
+		// send the email notification
+		$this->send_refund_notification( $payment_id );
+		// send back the data for the API response
 		return array(
 			'success'		=> true,
 			'message'		=> 'The payment has been successfully refunded',
