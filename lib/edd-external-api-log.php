@@ -34,7 +34,7 @@ class EDD_External_Purchase_API_Log {
 			time datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
 			type varchar(20) DEFAULT NULL,
 			trans_id int(12) DEFAULT NULL,
-			info text DEFAULT NULL,
+			request text DEFAULT NULL,
 			result bool DEFAULT NULL,
 			error text DEFAULT NULL,
 			PRIMARY KEY  (ID)
@@ -71,7 +71,7 @@ class EDD_External_Purchase_API_Log {
 				'time'		=> date( 'Y-m-d H:i:s', strtotime( 'NOW', current_time( 'timestamp' ) ) ),
 				'type'		=> $type,
 				'trans_id'	=> '',
-				'info'		=> serialize( $info ),
+				'request'	=> serialize( $info ),
 				'result'	=> '',
 				'error'		=> ''
 			),
