@@ -878,19 +878,6 @@ class EDD_External_Purchase_API {
 	}
 
 	/**
-	 * [create_log description]
-	 * @param  array   $data [description]
-	 * @param  boolean $flag [description]
-	 * @return [type]        [description]
-	 */
-	public function create_log( $data = array(), $flag = true ) {
-			// sent to logger
-			$this->create_log( $wp_query->query_vars, false );
-		preprint( $data, true );
-
-	}
-
-	/**
 	 * Listens for the API and then processes the API requests
 	 *
 	 * @access public
