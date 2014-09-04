@@ -3,7 +3,7 @@
 Plugin Name: Easy Digital Downloads - External Purchase API
 Plugin URI: http://easydigitaldownloads.com/extension/external-purchase-api/
 Description: Provides an API endpoint for creating sales on third party sites
-Version: 0.0.1
+Version: 0.0.2
 Author: Reaktiv Studios
 Author URI:  http://andrewnorcross.com
 Contributors: norcross
@@ -25,7 +25,7 @@ class EDD_External_Purchase_API {
 	/**
 	 * API Version
 	 */
-	const VERSION = '1.0';
+	const VERSION = '0.0.2';
 
 	/**
 	 * Pretty Print?
