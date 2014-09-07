@@ -167,6 +167,8 @@ class EDD_External_Purchase_API {
 		$vars[] = 'trans_type';
 		$vars[] = 'payment_id';
 		$vars[] = 'product_id';
+		$vars[] = 'price_id';
+		$vars[] = 'quantity';
 		$vars[] = 'price';
 		$vars[] = 'first_name';
 		$vars[] = 'last_name';
@@ -225,7 +227,7 @@ class EDD_External_Purchase_API {
 	 * @param  int $product_id product ID in the database
 	 * @return string
 	 */
-	public function get_product_files( $product_id ) {
+	public function get_product_files( $product_id, $price_id = null ) {
 
 		// check item type
 		$itemtype	= $this->get_product_type( $product_id );
@@ -234,7 +236,7 @@ class EDD_External_Purchase_API {
 		if ( $itemtype == 'default' ) :
 			$data[]	= array(
 				'id'	=> absint( $product_id ),
-				'file'	=> edd_get_download_files( $product_id ),
+				'file'	=> edd_get_download_files( $product_id, $price_id ),
 				'name'	=> $this->get_product_name( $product_id ),
 			);
 
@@ -932,7 +934,7 @@ class EDD_External_Purchase_API {
 
 		// fetch my default price and check for custom passed
 		$default = $this->get_product_price( $wp_query->query_vars['product_id'] );
-		$price   = ! isset( $wp_query->query_vars['price'] ) || empty( $wp_query->query_vars['price'] ) ? $default : $wp_query->query_vars['price'];
+		$price   = ! isset( $wp_query->query_vars['price'] ) ? $default : $wp_query->query_vars['price'];
 
 		// set up an array of external data stuff
 		$source_name = ! empty( $wp_query->query_vars['source_name'] ) ? $wp_query->query_vars['source_name'] : '';
@@ -946,6 +948,8 @@ class EDD_External_Purchase_API {
 		// build data array of purchase info
 		$data = array(
 			'product_id'    => absint( $wp_query->query_vars['product_id'] ),
+			'price_id'		=> isset($wp_query->query_vars['price_id']) ? absint( $wp_query->query_vars['price_id'] ) : false,
+			'quantity'		=> isset($wp_query->query_vars['quantity']) ? absint( $wp_query->query_vars['quantity'] ) : 1,
 			'price'         => edd_sanitize_amount( $price ),
 			'first'         => esc_attr( $wp_query->query_vars['first_name'] ),
 			'last'          => esc_attr( $wp_query->query_vars['last_name'] ),
@@ -1078,17 +1082,32 @@ class EDD_External_Purchase_API {
 		);
 
 		$price = edd_sanitize_amount( strip_tags( trim( $data['price'] ) ) );
+		
+		// Handle price options
+		$price_id = isset( $data['price_id'] ) ? $data['price_id'] : null;
+		
+		if(  ! is_null($price_id) ) {
+			$item_number = array(
+				'id' => $data['product_id'], 
+				'options' => array(
+					'price_id' => $price_id, 
+					'quantity' => $data['quantity'], 
+				) 
+			);
+		} else {
+			$item_number = $data['product_id'];
+		}
 
 		// fetch download files
-		$downloads = $this->get_product_files( $data['product_id'] );
-
+		$downloads = $this->get_product_files( $data['product_id'], $price_id );
+		
 		// set up cart details
 		$cart_details[] = array(
 			'name'        => $this->get_product_name( $data['product_id'] ),
 			'id'          => $data['product_id'],
-			'item_number' => $data['product_id'],
+			'item_number' => $item_number,
 			'price'       => $price,
-			'quantity'    => 1,
+			'quantity'    => $data['quantity'],
 			'tax'         => 0,
 		);
 
@@ -1096,7 +1115,7 @@ class EDD_External_Purchase_API {
 		$date = date( 'Y-m-d H:i:s', strtotime( $date, current_time( 'timestamp' ) ) );
 
 		$purchase_data = array(
-			'price'        => edd_sanitize_amount( $price ),
+			'price'        => $price,
 			'tax'          => 0,
 			'post_date'    => $date,
 			'purchase_key' => strtolower( md5( uniqid() ) ), // random key
