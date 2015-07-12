@@ -140,10 +140,18 @@ class EDD_External_Purchase_API {
 	 * @since 1.5
 	 */
 	public static function verify_table() {
+
+		// bail if disabled
+		if ( false === apply_filters( 'edd_external_logging', true ) ) {
+			return;
+		}
+
 		// call the global
 		global $wpdb;
+
 		// set the name
 		$name   = $wpdb->prefix . "edd_external_log";
+
 		// check for existance of table
 		if( $wpdb->get_var( "SHOW TABLES LIKE '$name'" ) != $name ) {
 			// no table, so make it
@@ -161,6 +169,8 @@ class EDD_External_Purchase_API {
 	 * @return array $vars New query vars
 	 */
 	public function query_vars( $vars ) {
+
+		// add our new vars
 		$vars[] = 'token';
 		$vars[] = 'key';
 		$vars[] = 'trans_type';
@@ -174,9 +184,9 @@ class EDD_External_Purchase_API {
 		$vars[] = 'source_url';
 		$vars[] = 'receipt';
 
+		// return the vars
 		return $vars;
 	}
-
 
 	/**
 	 * Retrieve the user ID based on the public key provided
@@ -191,12 +201,21 @@ class EDD_External_Purchase_API {
 	 * @return bool if user ID is found, false otherwise
 	 */
 	public function get_user( $key = '' ) {
+
+		// call the globals
 		global $wpdb, $wp_query;
 
+		// check for a key being passed
 		if ( empty( $key ) ) {
 			$key = urldecode( $wp_query->query_vars['key'] );
 		}
 
+		// bail with no key
+		if ( empty( $key ) ) {
+			return false;
+		}
+
+		// do the lookup
 		$user = $wpdb->get_var( $wpdb->prepare( "
 			SELECT user_id
 			FROM $wpdb->usermeta
@@ -221,11 +240,11 @@ class EDD_External_Purchase_API {
 	 */
 	public function get_product_type( $product_id ) {
 
+		// fetch it
 		$type   = get_post_meta( $product_id, '_edd_product_type', true );
-		$type   = ! empty ( $type ) ? $type : 'default';
 
-		return $type;
-
+		// return the type
+		return ! empty ( $type ) ? $type : 'default';
 	}
 
 	/**
@@ -239,29 +258,38 @@ class EDD_External_Purchase_API {
 		$itemtype   = $this->get_product_type( $product_id );
 
 		// fetch download files for single items
-		if ( $itemtype == 'default' ) :
+		if ( $itemtype == 'default' ) {
+
+			// set the data
 			$data[] = array(
 				'id'    => absint( $product_id ),
 				'file'  => edd_get_download_files( $product_id ),
 				'name'  => $this->get_product_name( $product_id ),
 			);
 
+			// return the data
 			return $data;
+		}
 
-		endif;
-
+		// get the bundles
 		$bundles    = get_post_meta( $product_id, '_edd_bundled_products', true );
 
-		foreach ( $bundles as $bundle_id ):
+		// nothing? bail
+		if ( empty( $bundles ) ) {
+			return false;
+		}
+
+		// loop it
+		foreach ( $bundles as $bundle_id ) {
 			$data[] = array(
 				'id'    => absint( $bundle_id ),
 				'file'  => edd_get_download_files( $bundle_id ),
 				'name'  => $this->get_product_name( $bundle_id ),
 			);
-		endforeach;
+		}
 
+		// return the data
 		return $data;
-
 	}
 
 	/**
@@ -271,11 +299,11 @@ class EDD_External_Purchase_API {
 	 */
 	public function get_product_price( $product_id ) {
 
+		// get the price
 		$price  = get_post_meta( $product_id, 'edd_price', true );
-		$price  = ! empty ( $price ) ? edd_sanitize_amount( $price ) : 0;
 
-		return $price;
-
+		// return it
+		return ! empty ( $price ) ? edd_sanitize_amount( $price ) : 0;
 	}
 
 	/**
@@ -285,13 +313,19 @@ class EDD_External_Purchase_API {
 	 */
 	public function get_product_name( $product_id ) {
 
+		// fetch the custom
 		$custom = get_post_meta( $product_id, '_edd_external_title', true );
-		$base   = get_the_title( $product_id );
 
-		$title  = ! empty( $custom ) ? $custom : $base;
+		// if we have a custom, return that
+		if ( ! empty( $custom ) ) {
+			return esc_html( $custom );
+		}
 
-		return esc_html( $title );
+		// fetch the base one
+		$title   = get_the_title( $product_id );
 
+		// check for and return
+		return ! empty( $title ) ? esc_html( $title ) : 'EDD Product';
 	}
 
 	/**
@@ -311,24 +345,24 @@ class EDD_External_Purchase_API {
 			'post_status'   => 'any'
 		);
 
+		// fetch the licenses
 		$licenses = get_posts( $args );
 
-		if ( ! $licenses )
+		// bail with none
+		if ( empty( $licenses ) ) {
 			return false;
+		}
+
+		// set an empty default
+		$license_keys   = array();
 
 		// fetch license keys and make sure they are in an array to match the download items
-		foreach ( $licenses as $license_id ):
+		foreach ( $licenses as $license_id ) {
 			$license_keys[] = get_post_meta( $license_id, '_edd_sl_key', true );
-		endforeach;
-
-
-		// bail if we don't have anything
-		if ( ! $license_keys || empty( $license_keys ) )
-			return false;
+		}
 
 		// send back key(s)
-		return $license_keys;
-
+		return ! empty( $license_keys ) ? $license_keys : false;
 	}
 
 	/**
@@ -350,10 +384,11 @@ class EDD_External_Purchase_API {
 			'expire'        => rawurlencode( base64_encode( 2147472000 ) )
 		);
 
+		// add my args
 		$download_url   = add_query_arg( $params, home_url( 'index.php' ) );
 
+		// return the download URL
 		return $download_url;
-
 	}
 
 	/**
@@ -367,7 +402,9 @@ class EDD_External_Purchase_API {
 
 		// set the data return to an array
 		$download_data  = array();
-		foreach ( $downloads as $filekey => $file ) :
+
+		// loop them into a key / value
+		foreach ( $downloads as $filekey => $file ) {
 
 			$download_url       = $this->get_product_download_url( $payment_id, $file['id'] );
 
@@ -381,10 +418,10 @@ class EDD_External_Purchase_API {
 				'license_key'       => $download_license
 			);
 
-		endforeach;
+		}
 
+		// return the data
 		return $download_data;
-
 	}
 
 	/**
@@ -413,58 +450,35 @@ class EDD_External_Purchase_API {
 			'purchase_date'     => $purchase_date,
 			'purchase_stamp'    => $purchase_stamp
 		);
-
 	}
 
 	/**
-	 * confirm the ID being passed is actually a live product and not something else
-	 * @param  int $product_id product ID in the database
+	 * confirm the ID being passed is actually a live item and not something else
+	 * @param  int $item_id content ID in the database
 	 * @return bool
 	 */
-	public function confirm_product( $product_id ) {
+	public function confirm_id_exists( $item_id = 0, $type = 'download' ) {
 
-		$product    = get_post( $product_id );
+		// fetch the item
+		$item   = get_post( $item_id );
 
-		if ( ! $product ) {
+		// bail if nothing
+		if ( ! $item || ! is_object( $item ) ) {
 			return false;
 		}
 
-		if ( $product->post_type != 'download' ) {
+		// bail if not a download
+		if ( $item->post_type != $type ) {
 			return false;
 		}
 
-		if ( $product->post_status != 'publish' ) {
+		// bail if not published
+		if ( $item->post_status != 'publish' ) {
 			return false;
 		}
 
+		// return true
 		return true;
-
-	}
-
-	/**
-	 * confirm the ID being passed is actually a payment product and not something else
-	 * @param  int $payment_id product ID in the database
-	 * @return bool
-	 * @todo  indicate if item is missing or if has already been refunded
-	 */
-	public function confirm_payment( $payment_id ) {
-
-		$payment    = get_post( $payment_id );
-
-		if ( ! $payment ) {
-			return false;
-		}
-
-		if ( $payment->post_type != 'edd_payment' ) {
-			return false;
-		}
-
-		if ( $payment->post_status != 'publish' ) {
-			return false;
-		}
-
-		return true;
-
 	}
 
 	/**
@@ -475,32 +489,29 @@ class EDD_External_Purchase_API {
 	public function confirm_source_url( $source_url ) {
 
 		// first run bypass filter for those LIVIN ON THE EDGE
-		$disable    = apply_filters( 'edd_external_whitelist_enabled', true );
-
-		if ( ! $disable )
+		if ( false === $disable = apply_filters( 'edd_external_whitelist_enabled', true ) ) {
 			return true;
+		}
 
+		// grab the source
 		$source     = $this->strip_url( $source_url );
 
+		// check the whitelist
 		$whitelist  = apply_filters( 'edd_external_whitelist', array() );
 		$whitelist  = ! is_array( $whitelist ) ? array( $whitelist ) : $whitelist;
 
 		// check for a whitelist
-		if ( ! $whitelist || empty( $whitelist ) )
+		if ( ! $whitelist || empty( $whitelist ) ) {
 			return false;
+		}
 
 		// loop through the URLs and strip them
-		foreach ( $whitelist as $url ) :
+		foreach ( $whitelist as $url ) {
 			$list[] = $this->strip_url( $url );
-		endforeach;
+		}
 
-		// check said whitelist
-		if ( ! in_array( $source, $list ) )
-			return false;
-
-		// you're on the list
-		return true;
-
+		// check said whitelist and return if you're on the list
+		return ! in_array( $source, $list ) ? false : true;
 	}
 
 	/**
@@ -512,8 +523,9 @@ class EDD_External_Purchase_API {
 	public function strip_url( $url ) {
 
 		// check for the http or https and add it if it's missing
-		if ( ! preg_match( '~^(?:f|ht)tps?://~i', $url ) )
+		if ( ! preg_match( '~^(?:f|ht)tps?://~i', $url ) ) {
 			$url = 'http://' . $url;
+		}
 
 		// clean up the damn link
 		$parsed = parse_url( $url );
@@ -522,8 +534,8 @@ class EDD_External_Purchase_API {
 		// Give us only the last two parts of the host (domain and TLD)
 		$domain = join( '.', array_slice( $parts, -2 ) );
 
+		// return the domain
 		return $domain;
-
 	}
 
 	/**
@@ -532,16 +544,20 @@ class EDD_External_Purchase_API {
 	 * @return bool
 	 */
 	public function validate_request( $wp_query, $log_id = 0 ) {
+
 		// check for missing transaction type
 		if ( ! isset( $wp_query->query_vars['trans_type'] ) ) {
+
 			// set the response array
 			$response   = array(
 				'success'       => false,
 				'error_code'    => 'TRANS_TYPE_MISSING',
 				'message'       => 'No transaction type has been supplied.'
 			);
+
 			// update the log entry
 			EDD_External_Purchase_API_Log::update_log_entry( $log_id, 'unknown', 0, 0, $response['error_code'] );
+
 			// send the API response
 			return false;
 		}
@@ -551,32 +567,40 @@ class EDD_External_Purchase_API {
 
 		// Bail if we're not serving over SSL
 		if ( apply_filters( 'edd_external_require_ssl', true ) && ! is_ssl() ) {
+
 			// set the response array
 			$response = array(
 				'success'    => false,
 				'error_code' => 'NO_SSL',
 				'message'    => 'The API is only available over HTTPS.'
 			);
+
 			// update the log entry
 			EDD_External_Purchase_API_Log::update_log_entry( $log_id, $type, 0, 0, $response['error_code'] );
+
 			// send the API response
 			$this->output( $response );
+
 			// and bail
 			return false;
 		}
 
 		// check for both missing key AND token
 		if ( ! isset( $wp_query->query_vars['key'] ) && ! isset( $wp_query->query_vars['token'] ) ) {
+
 			// set the response array
 			$response   = array(
 				'success'       => false,
 				'error_code'    => 'KEY_TOKEN_MISSING',
 				'message'       => 'The required API key and token were not provided.'
 			);
+
 			// update the log entry
 			EDD_External_Purchase_API_Log::update_log_entry( $log_id, $type, 0, 0, $response['error_code'] );
+
 			// send the API response
 			$this->output( $response );
+
 			// and bail
 			return false;
 		}
@@ -589,42 +613,53 @@ class EDD_External_Purchase_API {
 				'error_code'    => 'KEY_MISSING',
 				'message'       => 'The required API key was not provided.'
 			);
+
 			// update the log entry
 			EDD_External_Purchase_API_Log::update_log_entry( $log_id, $type, 0, 0, $response['error_code'] );
+
 			// send the API response
 			$this->output( $response );
+
 			// and bail
 			return false;
 		}
 
 		// check for missing token
 		if ( ! isset( $wp_query->query_vars['token'] ) ) {
+
 			// set the response array
 			$response   = array(
 				'success'       => false,
 				'error_code'    => 'TOKEN_MISSING',
 				'message'       => 'The required token was not provided.'
 			);
+
 			// update the log entry
 			EDD_External_Purchase_API_Log::update_log_entry( $log_id, $type, 0, 0, $response['error_code'] );
+
 			// send the API response
 			$this->output( $response );
+
 			// and bail
 			return false;
 		}
 
 		// check for missing source URL
 		if ( ! isset( $wp_query->query_vars['source_url'] ) ) {
+
 			// set the response array
 			$response   = array(
 				'success'       => false,
 				'error_code'    => 'SOURCE_URL_MISSING',
 				'message'       => 'A source URL is required.'
 			);
+
 			// update the log entry
 			EDD_External_Purchase_API_Log::update_log_entry( $log_id, $type, 0, 0, $response['error_code'] );
+
 			// send the API response
 			$this->output( $response );
+
 			// and bail
 			return false;
 		}
@@ -633,16 +668,20 @@ class EDD_External_Purchase_API {
 		$whitelist  = $this->confirm_source_url( $wp_query->query_vars['source_url'] );
 
 		if ( ! $whitelist ) {
+
 			// set the response array
 			$response   = array(
 				'success'       => false,
 				'error_code'    => 'SOURCE_URL_WHITELIST',
 				'message'       => 'Your site has not been approved for external purchases. Please contact the store owner.'
 			);
+
 			// update the log entry
 			EDD_External_Purchase_API_Log::update_log_entry( $log_id, $type, 0, 0, $response['error_code'] );
+
 			// send the API response
 			$this->output( $response );
+
 			// and bail
 			return false;
 		}
@@ -651,16 +690,20 @@ class EDD_External_Purchase_API {
 		$apiuser    = $this->get_user( $wp_query->query_vars['key'] );
 
 		if ( ! user_can( $apiuser, 'edit_shop_payments' ) ) {
+
 			// set the response array
 			$response   = array(
 				'success'       => false,
 				'error_code'    => 'NO_PAYMENT_ACCESS',
 				'message'       => 'The API user does not have permission to create payments.'
 			);
+
 			// update the log entry
 			EDD_External_Purchase_API_Log::update_log_entry( $log_id, $type, 0, 0, $response['error_code'] );
+
 			// send the API response
 			$this->output( $response );
+
 			// and bail
 			return false;
 		}
@@ -670,50 +713,62 @@ class EDD_External_Purchase_API {
 
 			// check for missing product ID
 			if ( ! isset( $wp_query->query_vars['product_id'] ) ) {
+
 				// set the response array
 				$response   = array(
 					'success'       => false,
 					'error_code'    => 'NO_PRODUCT_ID',
 					'message'       => 'No product ID was provided.'
 				);
+
 				// update the log entry
 				EDD_External_Purchase_API_Log::update_log_entry( $log_id, $type, 0, 0, $response['error_code'] );
+
 				// send the API response
 				$this->output( $response );
+
 				// and bail
 				return false;
 			}
 
 			// check for invalid product ID
 			if ( ! is_numeric( $wp_query->query_vars['product_id'] ) ) {
+
 				// set the response array
 				$response   = array(
 					'success'       => false,
 					'error_code'    => 'INVALID_PRODUCT_ID',
 					'message'       => 'The provided product ID must be numeric.'
 				);
+
 				// update the log entry
 				EDD_External_Purchase_API_Log::update_log_entry( $log_id, $type, 0, 0, $response['error_code'] );
+
 				// send the API response
 				$this->output( $response );
+
 				// and bail
 				return false;
 			}
 
 			// check if the product ID is an actual product
-			$product_check  = $this->confirm_product( $wp_query->query_vars['product_id'] );
+			$product_check  = $this->confirm_id_exists( $wp_query->query_vars['product_id'], 'download' );
 
 			if ( ! $product_check ) {
+
 				// set the response array
 				$response   = array(
 					'success'       => false,
 					'error_code'    => 'NOT_VALID_PRODUCT',
 					'message'       => 'The provided ID was not a valid product.'
 				);
+
 				// update the log entry
 				EDD_External_Purchase_API_Log::update_log_entry( $log_id, $type, 0, 0, $response['error_code'] );
+
 				// send the API response
 				$this->output( $response );
+
 				// and bail
 				return false;
 			}
@@ -725,50 +780,62 @@ class EDD_External_Purchase_API {
 
 			// check for missing payment ID
 			if ( ! isset( $wp_query->query_vars['payment_id'] ) ) {
+
 				// set the response array
 				$response   = array(
 					'success'       => false,
 					'error_code'    => 'NO_PAYMENT_ID',
 					'message'       => 'No payment ID was not provided.'
 				);
+
 				// update the log entry
 				EDD_External_Purchase_API_Log::update_log_entry( $log_id, $type, 0, 0, $response['error_code'] );
+
 				// send the API response
 				$this->output( $response );
+
 				// and bail
 				return false;
 			}
 
 			// check for invalid payment ID
 			if ( ! is_numeric( $wp_query->query_vars['payment_id'] ) ) {
+
 				// set the response array
 				$response   = array(
 					'success'       => false,
 					'error_code'    => 'INVALID_PAYMENT_ID',
 					'message'       => 'The provided payment ID must be numeric.'
 				);
+
 				// update the log entry
 				EDD_External_Purchase_API_Log::update_log_entry( $log_id, $type, 0, 0, $response['error_code'] );
+
 				// send the API response
 				$this->output( $response );
+
 				// and bail
 				return false;
 			}
 
 			// check if the payment ID is an actual payment
-			$payment_check  = $this->confirm_payment( $wp_query->query_vars['payment_id'] );
+			$payment_check  = $this->confirm_id_exists( $wp_query->query_vars['payment_id'], 'edd_payment' );
 
 			if ( ! $payment_check ) {
+
 				// set the response array
 				$response   = array(
 					'success'       => false,
 					'error_code'    => 'NOT_VALID_PAYMENT',
 					'message'       => 'The provided ID was not a valid payment ID.'
 				);
+
 				// update the log entry
 				EDD_External_Purchase_API_Log::update_log_entry( $log_id, $type, 0, 0, $response['error_code'] );
+
 				// send the API response
 				$this->output( $response );
+
 				// and bail
 				return false;
 			}
@@ -780,100 +847,124 @@ class EDD_External_Purchase_API {
 
 			// check for missing product ID
 			if ( ! isset( $wp_query->query_vars['product_id'] ) ) {
+
 				// set the response array
 				$response   = array(
 					'success'       => false,
 					'error_code'    => 'NO_PRODUCT_ID',
 					'message'       => 'No product ID was provided.'
 				);
+
 				// update the log entry
 				EDD_External_Purchase_API_Log::update_log_entry( $log_id, $type, 0, 0, $response['error_code'] );
+
 				// send the API response
 				$this->output( $response );
+
 				// and bail
 				return false;
 			}
 
 			// check for missing payment ID
 			if ( ! isset( $wp_query->query_vars['payment_id'] ) ) {
+
 				// set the response array
 				$response   = array(
 					'success'       => false,
 					'error_code'    => 'NO_PAYMENT_ID',
 					'message'       => 'No payment ID was not provided.'
 				);
+
 				// update the log entry
 				EDD_External_Purchase_API_Log::update_log_entry( $log_id, $type, 0, 0, $response['error_code'] );
+
 				// send the API response
 				$this->output( $response );
+
 				// and bail
 				return false;
 			}
 
 			// check for invalid product ID
 			if ( ! is_numeric( $wp_query->query_vars['product_id'] ) ) {
+
 				// set the response array
 				$response   = array(
 					'success'       => false,
 					'error_code'    => 'INVALID_PRODUCT_ID',
 					'message'       => 'The provided product ID must be numeric.'
 				);
+
 				// update the log entry
 				EDD_External_Purchase_API_Log::update_log_entry( $log_id, $type, 0, 0, $response['error_code'] );
+
 				// send the API response
 				$this->output( $response );
+
 				// and bail
 				return false;
 			}
 
 			// check if the product ID is an actual product
-			$product_check  = $this->confirm_product( $wp_query->query_vars['product_id'] );
+			$product_check  = $this->confirm_id_exists( $wp_query->query_vars['product_id'], 'download' );
 
 			if ( ! $product_check ) {
+
 				// set the response array
 				$response   = array(
 					'success'       => false,
 					'error_code'    => 'NOT_VALID_PRODUCT',
 					'message'       => 'The provided ID was not a valid product.'
 				);
+
 				// update the log entry
 				EDD_External_Purchase_API_Log::update_log_entry( $log_id, $type, 0, 0, $response['error_code'] );
+
 				// send the API response
 				$this->output( $response );
+
 				// and bail
 				return false;
 			}
 
 			// check for invalid payment ID
 			if ( ! is_numeric( $wp_query->query_vars['payment_id'] ) ) {
+
 				// set the response array
 				$response   = array(
 					'success'       => false,
 					'error_code'    => 'INVALID_PAYMENT_ID',
 					'message'       => 'The provided payment ID must be numeric.'
 				);
+
 				// update the log entry
 				EDD_External_Purchase_API_Log::update_log_entry( $log_id, $type, 0, 0, $response['error_code'] );
+
 				// send the API response
 				$this->output( $response );
+
 				// and bail
 				return false;
 			}
 
 			// check if the payment ID is an actual payment
-			$payment_check  = $this->confirm_payment( $wp_query->query_vars['payment_id'] );
+			$payment_check  = $this->confirm_id_exists( $wp_query->query_vars['payment_id'], 'edd_payment' );
 
 			if ( ! $payment_check ) {
+
 				// set the response array
 				$response   = array(
 					'success'       => false,
 					'error_code'    => 'NOT_VALID_PAYMENT',
 					'message'       => 'The provided ID was not a valid payment ID.'
 				);
+
 				// update the log entry
 				EDD_External_Purchase_API_Log::update_log_entry( $log_id, $type, 0, 0, $response['error_code'] );
+
 				// send the API response
 				$this->output( $response );
+
 				// and bail
 				return false;
 			}
@@ -882,7 +973,6 @@ class EDD_External_Purchase_API {
 
 		// all checks passed
 		return true;
-
 	}
 
 	/**
@@ -895,38 +985,49 @@ class EDD_External_Purchase_API {
 	 * @return void
 	 */
 	public function process_query() {
+
 		// call the global
 		global $wp_query;
+
 		// Check for edd-external-purchase var. Get out if not present
 		if ( ! isset( $wp_query->query_vars['edd-external-api'] ) ) {
 			return;
 		}
+
 		// run our initial log
 		$log_id = EDD_External_Purchase_API_Log::create_log_entry( 'request', $wp_query->query );
+
 		// run my validation checks
 		$validate   = $this->validate_request( $wp_query, $log_id );
+
 		// if validation failed, just return
 		if ( ! $validate ) {
 			return;
 		}
+
 		// set process to false
 		$process    = false;
+
 		// process our purchase action
 		if ( isset( $wp_query->query_vars['trans_type'] ) && $wp_query->query_vars['trans_type'] == 'purchase' ) {
 			$process    = $this->process_payment( $wp_query, $log_id );
 		}
+
 		// process our refund action
 		if ( isset( $wp_query->query_vars['trans_type'] ) && $wp_query->query_vars['trans_type'] == 'refund' ) {
 			$process    = $this->process_refund( $wp_query->query_vars['payment_id'], $log_id );
 		}
+
 		// // process our details request action
 		if ( isset( $wp_query->query_vars['trans_type'] ) && $wp_query->query_vars['trans_type'] == 'details' ) {
 			$process    = $this->process_details( $wp_query, $log_id );
 		}
+
 		// bail if nothing came back
 		if ( ! $process ) {
 			return;
 		}
+
 		// Send out data to the output function
 		$this->output( $process );
 	}
@@ -966,8 +1067,8 @@ class EDD_External_Purchase_API {
 		// send purchase data to processing
 		$process = $this->create_payment( $data, $log_id );
 
+		// return the processed payment
 		return $process;
-
 	}
 
 	/**
@@ -1038,8 +1139,8 @@ class EDD_External_Purchase_API {
 
 		}
 
+		// return the new user ID
 		return $user_id;
-
 	}
 
 	/**
@@ -1147,7 +1248,6 @@ class EDD_External_Purchase_API {
 			'purchase_key'  => $purchase_data['purchase_key'],
 			'download_data' => $download_data,
 		);
-
 	}
 
 	/**
@@ -1357,7 +1457,6 @@ class EDD_External_Purchase_API {
 		remove_filter( 'wp_mail_content_type', array( $this, 'set_html_content_type' ) );
 
 		return;
-
 	}
 
 	/**
@@ -1377,7 +1476,6 @@ class EDD_External_Purchase_API {
 
 		// return the requested item
 		return $settings[$key];
-
 	}
 
 	/**
@@ -1387,26 +1485,31 @@ class EDD_External_Purchase_API {
 	 * @return [type]              [description]
 	 */
 	public function process_refund( $payment_id = 0, $log_id = 0 ) {
+
 		// bail without a payment ID
 		if ( empty( $payment_id ) ) {
 			return;
 		}
+
 		// update our payment status
 		edd_update_payment_status( $payment_id, 'refunded' );
+
 		// set a meta key
 		update_post_meta( $payment_id, '_edd_refunded_date', current_time( 'mysql' ) );
+
 		// send the email notification if enabled
 		if ( apply_filters( 'edd_external_enable_refund_email', true ) ) {
 			$this->send_refund_notification( $payment_id );
 		}
+
 		// update our log entry
 		EDD_External_Purchase_API_Log::update_log_entry( $log_id, 'refund', $payment_id, 1, '' );
+
 		// send back the data for the API response
 		return array(
 			'success'       => true,
 			'message'       => 'The payment has been successfully refunded',
 		);
-
 	}
 
 	/**
@@ -1416,14 +1519,18 @@ class EDD_External_Purchase_API {
 	 * @return [type]            [description]
 	 */
 	public function process_details( $wp_query, $log_id = 0 ) {
+
 		//get our two IDs
 		$product_id     = absint( $wp_query->query_vars['product_id'] );
 		$payment_id     = absint( $wp_query->query_vars['payment_id'] );
+
 		// get the data for each one
 		$purchase_data  = $this->fetch_purchase_data( $payment_id );
 		$download_data  = $this->fetch_download_data( $payment_id, $product_id );
+
 		// update our log entry
 		EDD_External_Purchase_API_Log::update_log_entry( $log_id, 'details', $payment_id, 1, '' );
+
 		// send back the data for the API response
 		return array(
 			'success'       => true,
@@ -1431,7 +1538,6 @@ class EDD_External_Purchase_API {
 			'download_data' => $download_data,
 			'purchase_data' => $purchase_data
 		);
-
 	}
 
 	/**
@@ -1451,7 +1557,6 @@ class EDD_External_Purchase_API {
 		echo json_encode( $data );
 
 		edd_die();
-
 	}
 
 	/**
