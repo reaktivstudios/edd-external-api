@@ -150,7 +150,7 @@ class EDD_External_Purchase_API {
 		global $wpdb;
 
 		// set the name
-		$name   = $wpdb->prefix . "edd_external_log";
+		$name   = $wpdb->prefix . 'edd_external_log';
 
 		// check for existance of table
 		if( $wpdb->get_var( "SHOW TABLES LIKE '$name'" ) != $name ) {
@@ -180,6 +180,7 @@ class EDD_External_Purchase_API {
 		$vars[] = 'first_name';
 		$vars[] = 'last_name';
 		$vars[] = 'email';
+		$vars[] = 'date';
 		$vars[] = 'source_name';
 		$vars[] = 'source_url';
 		$vars[] = 'receipt';
@@ -202,12 +203,17 @@ class EDD_External_Purchase_API {
 	 */
 	public function get_user( $key = '' ) {
 
-		// call the globals
-		global $wpdb, $wp_query;
+		// call the global
+		global $wpdb;
 
 		// check for a key being passed
 		if ( empty( $key ) ) {
-			$key = urldecode( $wp_query->query_vars['key'] );
+
+			// call the query global
+			global $wp_query;
+
+			// get the key
+			$key = ! empty( $wp_query->query_vars['key'] ) ? urldecode( $wp_query->query_vars['key'] ) : '';
 		}
 
 		// bail with no key
@@ -234,17 +240,20 @@ class EDD_External_Purchase_API {
 	}
 
 	/**
-	 * fetch the product type (standard or bundle)
-	 * @param  int $product_id product ID in the database
-	 * @return string
+	 * fetch a meta value for an item with an optional default
+	 *
+	 * @param  integer $item_id  [description]
+	 * @param  string  $key      [description]
+	 * @param  string  $default  [description]
+	 * @return [type]            [description]
 	 */
-	public function get_product_type( $product_id ) {
+	public function get_content_meta( $item_id = 0, $key = '', $default = '' ) {
 
 		// fetch it
-		$type   = get_post_meta( $product_id, '_edd_product_type', true );
+		$meta   = get_post_meta( $item_id, $key, true );
 
-		// return the type
-		return ! empty ( $type ) ? $type : 'default';
+		// return the item
+		return ! empty ( $meta ) ? $meta : $default;
 	}
 
 	/**
@@ -255,7 +264,7 @@ class EDD_External_Purchase_API {
 	public function get_product_files( $product_id ) {
 
 		// check item type
-		$itemtype   = $this->get_product_type( $product_id );
+		$itemtype   = $this->get_content_meta( $product_id, '_edd_product_type', 'default' );
 
 		// fetch download files for single items
 		if ( $itemtype == 'default' ) {
@@ -272,7 +281,7 @@ class EDD_External_Purchase_API {
 		}
 
 		// get the bundles
-		$bundles    = get_post_meta( $product_id, '_edd_bundled_products', true );
+		$bundles    = $this->get_content_meta( $product_id, '_edd_bundled_products' );
 
 		// nothing? bail
 		if ( empty( $bundles ) ) {
@@ -293,20 +302,6 @@ class EDD_External_Purchase_API {
 	}
 
 	/**
-	 * fetch the product price (or zero)
-	 * @param  int $product_id product ID in the database
-	 * @return string
-	 */
-	public function get_product_price( $product_id ) {
-
-		// get the price
-		$price  = get_post_meta( $product_id, 'edd_price', true );
-
-		// return it
-		return ! empty ( $price ) ? edd_sanitize_amount( $price ) : 0;
-	}
-
-	/**
 	 * fetch the custom product name with standard fallback
 	 * @param  int $product_id product ID in the database
 	 * @return string
@@ -314,7 +309,7 @@ class EDD_External_Purchase_API {
 	public function get_product_name( $product_id ) {
 
 		// fetch the custom
-		$custom = get_post_meta( $product_id, '_edd_external_title', true );
+		$custom = $this->get_content_meta( $product_id, '_edd_external_title' );
 
 		// if we have a custom, return that
 		if ( ! empty( $custom ) ) {
@@ -372,8 +367,9 @@ class EDD_External_Purchase_API {
 	 */
 	public function get_product_download_url( $payment_id, $product_id ) {
 
-		$payment_key    = get_post_meta( $payment_id, '_edd_payment_purchase_key', true );
-		$payment_email  = get_post_meta( $payment_id, '_edd_payment_user_email', true );
+		// fetch my key and email
+		$payment_key    = $this->get_content_meta( $payment_id, '_edd_payment_purchase_key' );
+		$payment_email  = $this->get_content_meta( $payment_id, '_edd_payment_user_email' );
 
 		$params = array(
 			'download_key'  => $payment_key,
@@ -431,17 +427,22 @@ class EDD_External_Purchase_API {
 	 */
 	public function fetch_purchase_data( $payment_id ) {
 
-		$purchase_key   = get_post_meta( $payment_id, '_edd_payment_purchase_key', true );
-		$purchase_total = get_post_meta( $payment_id, '_edd_payment_total', true );
+		// fetch my purchase key and total
+		$purchase_key   = $this->get_content_meta( $payment_id, '_edd_payment_purchase_key' );
+		$purchase_total = $this->get_content_meta( $payment_id, '_edd_payment_total' );
 
+		// get and convert the purchase date
 		$purchase_date  = get_post_field( 'post_date', $payment_id, 'raw' );
 		$purchase_stamp = strtotime( $purchase_date );
 
-		$external_meta  = get_post_meta( $payment_id, '_edd_external_purchase_meta', true );
+		// fetch any external meta
+		$external_meta  = $this->get_content_meta( $payment_id, '_edd_external_purchase_meta' );
 
+		// get my source name and URL
 		$source_name    = ! empty( $external_meta['source_name'] ) ? esc_html( $external_meta['source_name'] ) : '';
 		$source_url     = ! empty( $external_meta['source_url'] ) ? esc_url( $external_meta['source_url'] ) : '';
 
+		// return the data array
 		return array(
 			'external_source'   => $source_name,
 			'external_url'      => $source_url,
@@ -531,6 +532,7 @@ class EDD_External_Purchase_API {
 		$parsed = parse_url( $url );
 		$host   = $parsed['host'];
 		$parts  = explode( '.', $host );
+
 		// Give us only the last two parts of the host (domain and TLD)
 		$domain = join( '.', array_slice( $parts, -2 ) );
 
@@ -665,9 +667,7 @@ class EDD_External_Purchase_API {
 		}
 
 		// check for source URL on whitelist
-		$whitelist  = $this->confirm_source_url( $wp_query->query_vars['source_url'] );
-
-		if ( ! $whitelist ) {
+		if ( false === $whitelist = $this->confirm_source_url( $wp_query->query_vars['source_url'] ) ) {
 
 			// set the response array
 			$response   = array(
@@ -686,10 +686,11 @@ class EDD_External_Purchase_API {
 			return false;
 		}
 
-		// check if user being passed has purchase access
+		// fetch the user ID from the API key passed
 		$apiuser    = $this->get_user( $wp_query->query_vars['key'] );
 
-		if ( ! user_can( $apiuser, 'edit_shop_payments' ) ) {
+		// check if user being passed has purchase access
+		if ( empty( $apiuser ) || ! user_can( $apiuser, 'edit_shop_payments' ) ) {
 
 			// set the response array
 			$response   = array(
@@ -752,9 +753,7 @@ class EDD_External_Purchase_API {
 			}
 
 			// check if the product ID is an actual product
-			$product_check  = $this->confirm_id_exists( $wp_query->query_vars['product_id'], 'download' );
-
-			if ( ! $product_check ) {
+			if ( false === $product_check = $this->confirm_id_exists( $wp_query->query_vars['product_id'], 'download' ) ) {
 
 				// set the response array
 				$response   = array(
@@ -819,9 +818,7 @@ class EDD_External_Purchase_API {
 			}
 
 			// check if the payment ID is an actual payment
-			$payment_check  = $this->confirm_id_exists( $wp_query->query_vars['payment_id'], 'edd_payment' );
-
-			if ( ! $payment_check ) {
+			if ( false === $payment_check = $this->confirm_id_exists( $wp_query->query_vars['payment_id'], 'edd_payment' ) ) {
 
 				// set the response array
 				$response   = array(
@@ -906,9 +903,7 @@ class EDD_External_Purchase_API {
 			}
 
 			// check if the product ID is an actual product
-			$product_check  = $this->confirm_id_exists( $wp_query->query_vars['product_id'], 'download' );
-
-			if ( ! $product_check ) {
+			if ( false === $product_check = $this->confirm_id_exists( $wp_query->query_vars['product_id'], 'download' ) ) {
 
 				// set the response array
 				$response   = array(
@@ -948,9 +943,7 @@ class EDD_External_Purchase_API {
 			}
 
 			// check if the payment ID is an actual payment
-			$payment_check  = $this->confirm_id_exists( $wp_query->query_vars['payment_id'], 'edd_payment' );
-
-			if ( ! $payment_check ) {
+			if ( false === $payment_check = $this->confirm_id_exists( $wp_query->query_vars['payment_id'], 'edd_payment' ) ) {
 
 				// set the response array
 				$response   = array(
@@ -997,11 +990,8 @@ class EDD_External_Purchase_API {
 		// run our initial log
 		$log_id = EDD_External_Purchase_API_Log::create_log_entry( 'request', $wp_query->query );
 
-		// run my validation checks
-		$validate   = $this->validate_request( $wp_query, $log_id );
-
-		// if validation failed, just return
-		if ( ! $validate ) {
+		// run my validation checks and if validation failed, just return
+		if ( false === $validate = $this->validate_request( $wp_query, $log_id ) ) {
 			return;
 		}
 
@@ -1040,8 +1030,8 @@ class EDD_External_Purchase_API {
 	public function process_payment( $wp_query, $log_id = 0 ) {
 
 		// fetch my default price and check for custom passed
-		$default = $this->get_product_price( $wp_query->query_vars['product_id'] );
-		$price   = ! isset( $wp_query->query_vars['price'] ) || empty( $wp_query->query_vars['price'] ) ? $default : $wp_query->query_vars['price'];
+		$default = $this->get_content_meta( $wp_query->query_vars['product_id'], 'edd_price', 0 );
+		$price   = ! empty( $wp_query->query_vars['price'] ) ? $wp_query->query_vars['price'] : $default;
 
 		// set up an array of external data stuff
 		$source_name = ! empty( $wp_query->query_vars['source_name'] ) ? $wp_query->query_vars['source_name'] : '';
@@ -1072,14 +1062,15 @@ class EDD_External_Purchase_API {
 	}
 
 	/**
-	 * [create_user description]
+	 * create a user when a new purchase is made
+	 *
 	 * @param  array   $data       [description]
 	 * @return [type]              [description]
 	 */
 	public function create_user( $data = array() ) {
 
 		// run required check for data
-		if ( ! $data ) {
+		if ( empty( $data ) ) {
 			return;
 		}
 
@@ -1094,9 +1085,9 @@ class EDD_External_Purchase_API {
 
 			// create user info array
 			$first = ! empty( $data['first'] ) ? sanitize_text_field( $data['first'] ) : '';
-			$last  = ! empty( $data['last'] )  ? sanitize_text_field( $data['last'] ) : '';
+			$last  = ! empty( $data['last'] ) ? sanitize_text_field( $data['last'] ) : '';
 			$email = ! empty( $data['email'] ) ? sanitize_email( $data['email'] ) : '';
-			$date  = ! empty( $data['date'] )  ? $data['date'] : date( 'Y-m-d H:i:s', strtotime( 'NOW', current_time( 'timestamp' ) ) );
+			$date  = ! empty( $data['date'] ) ? $data['date'] : date( 'Y-m-d H:i:s', strtotime( 'NOW', current_time( 'timestamp' ) ) );
 
 			// build user array
 			$userdata = array(
@@ -1134,9 +1125,7 @@ class EDD_External_Purchase_API {
 				remove_action( 'edd_insert_user', 'edd_new_user_notification', 10, 2 );
 				do_action( 'edd_insert_user', $user_id, $user_data );
 				add_action( 'edd_insert_user', 'edd_new_user_notification', 10, 2 );
-
 			}
-
 		}
 
 		// return the new user ID
@@ -1145,6 +1134,7 @@ class EDD_External_Purchase_API {
 
 	/**
 	 * construct the data array and process the payment
+	 *
 	 * @param  [type] $data [description]
 	 * @return [type]       [description]
 	 */
@@ -1153,7 +1143,7 @@ class EDD_External_Purchase_API {
 		global $edd_options;
 
 		// look up the user first
-		$user = get_user_by( 'email', $data['email'] );
+		$user = ! empty( $data['email'] ) ? get_user_by( 'email', $data['email'] ) : '';
 
 		// generate a new user if we don't have one
 		if ( ! $user ) {
@@ -1290,17 +1280,20 @@ class EDD_External_Purchase_API {
 	public function get_refund_email_data( $payment_id = 0 ) {
 
 		// get some payment info
-		$payment_num    = get_post_meta( $payment_id, '_edd_payment_number', true );
-		$purchase_date  = get_post_meta( $payment_id, '_edd_completed_date', true );
-		$refund_date    = get_post_meta( $payment_id, '_edd_refunded_date', true );
-		$payment_total  = get_post_meta( $payment_id, '_edd_payment_total', true );
-		$user_email     = get_post_meta( $payment_id, '_edd_payment_user_email', true );
-		$user_id        = get_post_meta( $payment_id, '_edd_payment_user_id', true );
+		$payment_num    = $this->get_content_meta( $payment_id, '_edd_payment_number' );
+		$purchase_date  = $this->get_content_meta( $payment_id, '_edd_completed_date' );
+		$refund_date    = $this->get_content_meta( $payment_id, '_edd_refunded_date' );
+		$payment_total  = $this->get_content_meta( $payment_id, '_edd_payment_total' );
+		$user_email     = $this->get_content_meta( $payment_id, '_edd_payment_user_email' );
+		$user_id        = $this->get_content_meta( $payment_id, '_edd_payment_user_id' );
+
 		$edit_link      = get_edit_post_link( $payment_id );
 		$user_link      = get_edit_user_link( $user_id );
-		$payment_meta   = get_post_meta( $payment_id, '_edd_payment_meta', true );
-		$payment_cart   = $payment_meta['cart_details'];
-		$payment_items  = wp_list_pluck( $payment_cart, 'name' );
+		$payment_meta   = $this->get_content_meta( $payment_id, '_edd_payment_meta' );
+
+		// fetch the cart tiems
+		$payment_cart   = ! empty( $payment_meta ) && ! empty( $payment_meta['cart_details'] ) ? $payment_meta['cart_details'] : '';
+		$payment_items  = ! empty( $payment_cart ) ? wp_list_pluck( $payment_cart, 'name' ) : '';
 
 		// set up the data
 		$data   = array();
