@@ -1329,6 +1329,7 @@ class EDD_External_Purchase_API {
 
 		// build the email body
 		$output = '';
+
 		// the opening and had
 		$output .= '<html>';
 		$output .= '<head>';
@@ -1338,65 +1339,79 @@ class EDD_External_Purchase_API {
 
 		// the meat of the email
 		$output .= '<table border="0" cellspacing="0" cellpadding="0">'."\n";
+
 		// begin data check
 		if ( ! empty( $data['payment-num'] ) ) {
+
 			// quick part for output
 			$edit   = ! empty( $data['item-link'] ) ? '<a href="' . $data['item-link'] . '">&nbsp;<em><small>(edit)</small></em></a>' : '';
+
 			// show it
 			$output .= '<tr>';
 				$output .= '<th width="200" align="left" valign="top">Payment Number:&nbsp;</th>';
 				$output .= '<td width="600" valign="top">' . $data['payment-num'] . $edit . '</td>';
 			$output .= '</tr>';
 		}
+
 		if ( ! empty( $data['purchase-date'] ) ) {
 			$output .= '<tr>';
 				$output .= '<th width="200" align="left" valign="top">Purchase Date:&nbsp;</th>';
 				$output .= '<td width="600" valign="top">' . $data['purchase-date'] . '</td>';
 			$output .= '</tr>';
 		}
+
 		if ( ! empty( $data['refund-date'] ) ) {
 			$output .= '<tr>';
 				$output .= '<th width="200" align="left" valign="top">Refund Date:&nbsp;</th>';
 				$output .= '<td width="600" valign="top">' . $data['refund-date'] . '</td>';
 			$output .= '</tr>';
 		}
+
 		if ( ! empty( $data['payment-total'] ) ) {
 			$output .= '<tr>';
 				$output .= '<th width="200" align="left" valign="top">Payment Total:&nbsp;</th>';
 				$output .= '<td width="600" valign="top">$' . $data['payment-total'] . '</td>';
 			$output .= '</tr>';
 		}
+
 		if ( ! empty( $data['user-email'] ) ) {
+
 			// quick part for output
 			$edit   = ! empty( $data['user-link'] ) ? '<a href="' . $data['user-link'] . '">&nbsp;<em><small>(edit)</small></em></a>' : '';
+
 			// show it
 			$output .= '<tr>';
 				$output .= '<th width="200" align="left" valign="top">User Email:&nbsp;</th>';
 				$output .= '<td width="600" valign="top">' . $data['user-email'] . $edit . '</td>';
 			$output .= '</tr>';
 		}
+
 		if ( ! empty( $data['payment-items'] ) ) {
+
 			// show it
 			$output .= '<tr>';
 				$output .= '<th width="200" align="left" valign="top">Item(s) Purchased:&nbsp;</th>';
 				$output .= '<td width="600" valign="top">';
+
 				// we need to loop them
 				foreach( $data['payment-items'] as $item ) {
 					$output .= esc_attr( $item ) . '<br />';
 				}
+
 				$output .= '</td>';
 			$output .= '</tr>';
 
 		}
+
 		// end table
 		$output .= '</table>';
+
 		// close it up
 		$output .= '</body>';
 		$output .= '</html>';
 
 		// send it back
 		return trim( $output );
-
 	}
 
 	/**
@@ -1527,7 +1542,7 @@ class EDD_External_Purchase_API {
 		// send back the data for the API response
 		return array(
 			'success'       => true,
-			'message'       => 'details regarding purchase ID '.$payment_id,
+			'message'       => 'details regarding purchase ID '. $payment_id,
 			'download_data' => $download_data,
 			'purchase_data' => $purchase_data
 		);
